@@ -1,0 +1,21 @@
+{
+  "name": "bybit-tradingbot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bybit trading bot — research, backtesting and live execution on Bybit V5 API",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "verify:key": "node --env-file=.env scripts/verify_bybit_key.mjs",
+    "test:mcp": "node --env-file=.env scripts/test_mcp_proxy.mjs",
+    "mcp:inspect": "node --env-file=.env scripts/list_tools.mjs"
+  },
+  "dependencies": {
+    "bybit-official-trading-server": "^2.1.21"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  }
+}
