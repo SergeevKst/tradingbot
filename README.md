@@ -7,6 +7,7 @@
 
 - ✅ Официальный MCP-сервер Bybit подключён к DSH и проверен живыми вызовами
 - ✅ API-ключи проверены (mainnet, HMAC-SHA256)
+- ✅ 348.05 USDT выведены из Earn в торговый аккаунт (UNIFIED), позиций нет
 - ⏳ Логика бота, стратегии, бэктест — впереди
 
 ## Структура
@@ -16,8 +17,11 @@
 .env.example               шаблон без секретов
 mcp/tools.allow.json       allowlist инструментов MCP (38 из 382)
 mcp/bybit-mcp-proxy.mjs    stdio-прокси: фильтрует tools/list, всё остальное — прозрачно
-scripts/verify_bybit_key.mjs   проверка ключей и прав (mainnet + testnet)
-scripts/test_mcp_proxy.mjs     проверка фильтрации + живые вызовы через прокси
+scripts/verify_bybit_key.mjs    проверка ключей и прав (mainnet + testnet)
+scripts/test_mcp_proxy.mjs      проверка фильтрации + живые вызовы через прокси
+scripts/list_tools.mjs          список инструментов и их цена в токенах
+scripts/inspect_accounts.mjs    read-only обзор всех счетов и Earn-позиций
+scripts/earn_to_trading.mjs     выкуп из Earn и перевод в UNIFIED (dry-run по умолчанию)
 ```
 
 ## MCP: как это устроено
@@ -52,7 +56,26 @@ batch), история, preCheckOrder, DCP. Что закрыто наглухо
 ```bash
 npm run verify:key     # ключи + права + срок действия
 npm run test:mcp       # фильтрация, блокировка запрещённых, живые вызовы
+npm run inspect:accounts  # счета + Earn (только чтение)
+npm run earn:move      # выкуп из Earn -> UNIFIED (dry-run; --execute для записи)
 ```
+
+## Перевод из Earn
+
+`scripts/earn_to_trading.mjs` сделан под необратимость выкупа:
+
+1. выкупает **пробный 1 USDT** и проверяет, куда пришли деньги,
+2. выкупает остаток с уже проверенными параметрами,
+3. переводит всё из FUND в UNIFIED и печатает балансы до/после.
+
+Каждый шаг перечитывает живые балансы, поэтому скрипт можно запускать повторно.
+По умолчанию — dry-run; запись только с флагом `--execute`.
+
+## Известные особенности
+
+- **DCP выключен** (`dcpStatus: OFF`) — защиты от отмены ордеров при обрыве связи нет.
+  Включение требует статуса institutional и согласования с аккаунт-менеджером.
+- Аккаунт: `REGULAR_MARGIN`, `unifiedMarginStatus 5`, хедж-режим выключен.
 
 Перезапуск MCP внутри DSH: правка `~/.dsh/profiles/web/cordis.patch.yml`
 применяется через HMR без рестарта DSH.

@@ -10,7 +10,9 @@
   "scripts": {
     "verify:key": "node --env-file=.env scripts/verify_bybit_key.mjs",
     "test:mcp": "node --env-file=.env scripts/test_mcp_proxy.mjs",
-    "mcp:inspect": "node --env-file=.env scripts/list_tools.mjs"
+    "mcp:inspect": "node --env-file=.env scripts/list_tools.mjs",
+    "inspect:accounts": "node --env-file=.env scripts/inspect_accounts.mjs",
+    "earn:move": "node --env-file=.env scripts/earn_to_trading.mjs"
   },
   "dependencies": {
     "bybit-official-trading-server": "^2.1.21"
