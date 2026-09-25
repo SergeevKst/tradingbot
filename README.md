@@ -8,9 +8,86 @@
 - ✅ Официальный MCP-сервер Bybit подключён к DSH и проверен живыми вызовами
 - ✅ API-ключи проверены (mainnet, HMAC-SHA256)
 - ✅ 348.05 USDT выведены из Earn в торговый аккаунт (UNIFIED), позиций нет
-- ⏳ Логика бота, стратегии, бэктест — впереди
+- ✅ ЭТАП 1: детерминированное ядро (config + risk + paper), 59 тестов зелёные
+- ⏳ Стратегии, market data, бэктест, AI — следующие этапы
 
-## Структура
+## ЭТАП 1 — безопасный фундамент
+
+Никакого live-исполнения, никаких write-вызовов к бирже, никакого AI в контуре
+принятия решений. Только детерминированное ядро.
+
+```
+src/
+├── config/
+│   ├── config-error.mjs   типизированная ошибка конфигурации
+│   ├── parse.mjs          строгий парсинг env (числа/enum/boolean)
+│   ├── trading-mode.mjs   BACKTEST | PAPER | LIVE, default PAPER
+│   ├── risk.mjs           риск-лимиты + cross-field валидация
+│   └── env.mjs            ЕДИНСТВЕННОЕ место чтения process.env
+├── domain/
+│   ├── side.mjs           LONG | SHORT (FLAT намеренно не side)
+│   ├── reason-code.mjs    machine-readable коды отказа
+│   ├── proposal.mjs       TradeProposal: закрытая схема
+│   ├── account-state.mjs  снимок аккаунта
+│   ├── market-state.mjs   снимок рынка (опционально)
+│   └── risk-result.mjs    APPROVED / REJECTED
+├── risk/
+│   ├── position-sizing.mjs  чистая математика сайзинга
+│   └── risk-engine.mjs      детерминированный арбитр риска
+├── execution/
+│   ├── paper-executor.mjs   симуляция, без Bybit-клиента
+│   └── live-guard.mjs       live-исполнение запрещено by construction
+├── util/logger.mjs        структурные логи с редакцией секретов
+└── index.mjs              bootstrap (config → risk → paper)
+test/
+├── fixtures.mjs           чистые фабрики фикстур
+├── risk-engine.test.mjs   15 требуемых тестов + edge cases
+└── security.test.mjs      изоляция ядра, отсутствие write-путей
+```
+
+### Инварианты ядра
+
+**FAIL CLOSED** — любое неизвестное состояние, исключение или нечитаемый вход
+дают `approved: false`. Нет пути, где неизвестность превращается в одобрение.
+
+**CONFIDENCE ИНЕРТНА** — `confidence` не влияет на размер позиции. 0.99 и 0.51
+дают одинаковый сайзинг; тесты 12 и 13 это фиксируют.
+
+**AI НЕ ОПРЕДЕЛЯЕТ РИСК** — внешний источник (человек, стратегия, позже AI)
+предлагает только `side / entry / stop / take`. Допустимый риск и размер позиции
+считает Risk Engine. Никакой prompt не может расширить hard limits.
+
+### Сайзинг
+
+```
+riskAmountUsd       = equity * riskPerTradePct / 100
+positionNotionalUsd = riskAmountUsd / stopLossDistanceFraction
+```
+
+Затем позиция ужимается по `maxLeverage` и доступному балансу. Если после ужатия
+ноторн оказывается ниже `minPositionNotionalUsd` — отказ, а не «пыль».
+
+### Команды
+
+```bash
+npm start                    # bootstrap ядра (PAPER по умолчанию)
+npm test                     # 59 тестов
+npm run test:security        # только проверки изоляции
+```
+
+```bash
+TRADING_MODE=PAPER npm start      # по умолчанию
+TRADING_MODE=BACKTEST npm start   # движка бэктеста ещё нет — ничего не запускает
+TRADING_MODE=LIVE npm start       # отказ на старте, exit 1
+TRADING_MODE=TURBO npm start      # отказ на старте, exit 1
+```
+
+### Что НЕ реализовано (намеренно)
+
+Стратегии, AI-промпты, автономный цикл, WebSocket-торговля, реальное
+исполнение, управление плечом через API, БД, RAG. Это следующие этапы.
+
+## Структура (MCP и скрипты)
 
 ```
 .env                       секреты (chmod 600, в .gitignore)
