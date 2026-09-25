@@ -58,7 +58,6 @@ export const DEFAULT_MARKET_CONFIG = Object.freeze({
 
 /**
  * @typedef {object} PaperConfig
- * @property {number} initialEquityUsd starting simulated equity
  * @property {number} takerFeeRate simulated entry fee rate
  * @property {number} exitFeeRate simulated exit fee rate
  * @property {string} defaultSymbol symbol the PAPER bootstrap inspects
@@ -66,6 +65,9 @@ export const DEFAULT_MARKET_CONFIG = Object.freeze({
  * @property {string} stateFile path to the persisted state file
  * @property {string} journalFile path to the append-only journal
  * @property {boolean} persist whether state/journal are written to disk
+ *
+ * Note: the starting equity is NOT part of this config — see
+ * `risk.initialCapitalUsd` (`RISK_INITIAL_CAPITAL_USD`).
  */
 
 /**
@@ -138,11 +140,10 @@ export function loadPaperConfig(env = process.env) {
 
   /** @type {PaperConfig & { market: MarketConfig }} */
   const config = {
-    initialEquityUsd: parseNumber(env.PAPER_INITIAL_EQUITY_USD, {
-      field: 'PAPER_INITIAL_EQUITY_USD',
-      fallback: 340,
-      exclusiveMin: 0,
-    }),
+    // Initial equity deliberately does NOT live here. It comes from
+    // `RISK_INITIAL_CAPITAL_USD` via `risk.initialCapitalUsd`, because the Risk
+    // Engine also uses it as the offline fallback equity. Parsing it in two
+    // places would let a user set one variable and silently get the other.
     takerFeeRate,
     exitFeeRate,
     timezone,

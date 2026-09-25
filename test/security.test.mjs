@@ -296,7 +296,10 @@ test('SECURITY: loadConfig loads without any credentials in the environment', as
   assert.equal(config.tradingMode, 'PAPER');
   assert.equal(config.credentials.hasApiKey, false);
   assert.equal(config.credentials.hasApiSecret, false);
-  assert.ok(config.paper.initialEquityUsd > 0);
+  // The starting equity lives in the risk config, which the Risk Engine also
+  // uses as its offline fallback equity — one source, not two.
+  assert.ok(config.risk.initialCapitalUsd > 0);
+  assert.equal(config.paper.initialEquityUsd, undefined, 'equity must not be duplicated in the paper config');
 });
 
 test('SECURITY: only the config layer reads process.env', () => {
@@ -479,4 +482,28 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
   ].sort();
 
   assert.deepEqual(inventory, expected, 'the src module set changed — review for boundary violations');
+});
+test('SECURITY: every documented env variable is actually read by the config layer', () => {
+  // A documented-but-unread variable is worse than a missing one: the operator
+  // sets it, sees no error, and silently gets a default. This test ties
+  // .env.example to the code so the two cannot drift apart.
+  const example = readFileSync(join(projectRoot, '.env.example'), 'utf8');
+  const documented = new Set();
+  for (const line of example.split('\n')) {
+    const match = /^([A-Z][A-Z0-9_]*)=/.exec(line.trim());
+    if (match) documented.add(match[1]);
+  }
+
+  const configSources = collectModules(join(srcRoot, 'config'))
+    .map((file) => readFileSync(file, 'utf8'))
+    .join('\n');
+
+  assert.ok(documented.size > 10, `expected the example to document variables, found ${documented.size}`);
+
+  const unread = [...documented].filter((name) => !configSources.includes(name));
+  assert.deepEqual(
+    unread,
+    [],
+    `these variables are documented in .env.example but never read by src/config: ${unread.join(', ')}`,
+  );
 });

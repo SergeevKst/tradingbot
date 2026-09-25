@@ -9,7 +9,7 @@
 - ✅ API-ключи проверены (mainnet, HMAC-SHA256)
 - ✅ 348.05 USDT выведены из Earn в торговый аккаунт (UNIFIED), позиций нет
 - ✅ ЭТАП 1: детерминированное ядро (config + risk + paper), 59 тестов зелёные
-- ✅ ЭТАП 2: market data + paper execution + persistent state, 175 тестов зелёные
+- ✅ ЭТАП 2: market data + paper execution + persistent state, 176 тестов зелёные
 - ⏳ Стратегии, бэктест, AI — следующие этапы
 
 ## ЭТАП 1 — безопасный фундамент
@@ -283,7 +283,7 @@ batch), история, preCheckOrder, DCP. Что закрыто наглухо
 ## Проверка
 
 ```bash
-npm test                  # весь набор (175 тестов)
+npm test                  # весь набор (176 тестов)
 npm run test:paper        # только PAPER-слой (market/state/execution/session)
 npm run test:security     # изоляция архитектуры
 npm run paper:test        # самопроверка конвейера в форме команды (офлайн)

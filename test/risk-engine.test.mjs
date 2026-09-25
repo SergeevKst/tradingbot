@@ -413,7 +413,7 @@ test('TEST 15g: the trading core ignores credentials entirely', () => {
   // simply not its business. PAPER must run with no keys at all.
   const withHalfCredentials = loadConfig({ BYBIT_API_KEY: 'only-key' });
   assert.equal(withHalfCredentials.tradingMode, 'PAPER');
-  assert.equal(withHalfCredentials.paper.initialEquityUsd > 0, true);
+  assert.ok(withHalfCredentials.risk.initialCapitalUsd > 0);
 
   const withoutAny = loadConfig({});
   assert.equal(withoutAny.tradingMode, 'PAPER');
