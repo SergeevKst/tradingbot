@@ -33,7 +33,6 @@ import { REASON_CODE } from './reason-code.mjs';
  * @property {OpenPosition[]} openPositions
  * @property {OpenOrder[]} openOrders
  * @property {number} [tradesToday] approved trades already taken today
- * @property {string[]} [tradedSymbolsToday] symbols already traded today (duplicate detection)
  */
 
 /**
@@ -91,9 +90,6 @@ export function validateAccountState(raw) {
   }
 
   const tradesToday = toFinite(input.tradesToday);
-  const tradedSymbolsToday = Array.isArray(input.tradedSymbolsToday)
-    ? input.tradedSymbolsToday.filter((s) => typeof s === 'string')
-    : [];
 
   /** @type {AccountState} */
   const state = Object.freeze({
@@ -119,7 +115,6 @@ export function validateAccountState(raw) {
       });
     })),
     tradesToday: tradesToday === null ? 0 : Math.max(0, Math.trunc(tradesToday)),
-    tradedSymbolsToday: Object.freeze(tradedSymbolsToday.map((s) => s.trim().toUpperCase())),
   });
 
   return { valid: true, reasonCode: null, state };
@@ -141,7 +136,6 @@ export function createOfflineAccountState(seed) {
     openPositions: [],
     openOrders: [],
     tradesToday: 0,
-    tradedSymbolsToday: [],
   });
   if (!valid || state === null) {
     throw new Error('createOfflineAccountState received an invalid seed');

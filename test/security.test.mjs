@@ -269,7 +269,34 @@ test('SECURITY: config description never contains secret material', async () => 
   const serialized = JSON.stringify(describeConfig(config));
   assert.ok(!serialized.includes('LEAK-CANARY-KEY'), 'API key leaked through describeConfig');
   assert.ok(!serialized.includes('LEAK-CANARY-SECRET'), 'API secret leaked through describeConfig');
-  assert.equal(config.credentials.hasApiKey, true, 'presence must still be reported');
+});
+
+test('SECURITY: the trading core does not read BYBIT_API_KEY / BYBIT_API_SECRET at all', () => {
+  // Stage 2 requirement: PAPER must run with no credentials present, so no
+  // module on the trading path may even name these variables.
+  const allowed = ['src/config/env.mjs'];
+
+  for (const file of allModules) {
+    const rel = relative(projectRoot, file);
+    if (allowed.includes(rel)) continue;
+    const text = source(file);
+    assert.ok(
+      !text.includes('BYBIT_API_KEY') && !text.includes('BYBIT_API_SECRET'),
+      `${rel} must not reference exchange credentials — they are not needed by the trading core`,
+    );
+  }
+});
+
+test('SECURITY: loadConfig loads without any credentials in the environment', async () => {
+  const { loadConfig } = await import('../src/config/env.mjs');
+
+  // A completely credential-free environment must still produce a working
+  // PAPER configuration.
+  const config = loadConfig({ TRADING_MODE: 'PAPER' });
+  assert.equal(config.tradingMode, 'PAPER');
+  assert.equal(config.credentials.hasApiKey, false);
+  assert.equal(config.credentials.hasApiSecret, false);
+  assert.ok(config.paper.initialEquityUsd > 0);
 });
 
 test('SECURITY: only the config layer reads process.env', () => {
@@ -281,31 +308,139 @@ test('SECURITY: only the config layer reads process.env', () => {
     if (configModules.includes(rel)) continue;
     const text = source(file);
     const readsEnv = /process\.env/.test(text);
-    // `process.env` may only appear in the config layer. The single exception is
-    // a test-injectable default parameter, which the config layer itself uses.
     assert.ok(!readsEnv, `${rel} must not read process.env — configuration belongs to the config layer`);
   }
 });
 
-test('SECURITY: no module writes files or spawns processes in the core', () => {
-  const banned = ['writeFileSync', 'writeFile(', 'appendFileSync', 'child_process', 'execSync', 'spawnSync'];
+test('SECURITY: only the storage layer writes files, and never inside the trading core', () => {
+  // Stage 2 added persistence, so the blanket file-write ban is narrowed rather
+  // than dropped: exactly one module owns disk I/O, and the trading logic
+  // (risk, execution, market, domain, session) still cannot write anything.
+  const allowedStorageModules = ['src/state/jsonl-file.mjs'];
+  const banned = ['writeFileSync', 'appendFileSync', 'child_process', 'execSync', 'spawnSync'];
 
   for (const file of allModules) {
     const text = source(file);
     const rel = relative(projectRoot, file);
+    if (allowedStorageModules.includes(rel)) continue;
     for (const token of banned) {
       assert.ok(!text.includes(token), `${rel} must not contain "${token}"`);
     }
   }
+
+  // Any other module that writes to disk must go through the storage layer.
+  for (const file of allModules) {
+    const rel = relative(projectRoot, file);
+    if (allowedStorageModules.includes(rel)) continue;
+    const text = source(file);
+    assert.ok(
+      !/writeFile\(|appendFile\(/.test(text),
+      `${rel} must not call writeFile/appendFile directly — route disk I/O through src/state/jsonl-file.mjs`,
+    );
+  }
 });
 
-test('SECURITY: the module inventory is exactly what Stage 1 intends', () => {
+test('SECURITY: the paper execution layer cannot import a Bybit write client', () => {
+  const executionModules = modulesUnder('execution');
+  assert.ok(executionModules.length > 0);
+
+  const forbidden = [
+    'bybit-official-trading-server',
+    'bybit-api',
+    '@modelcontextprotocol',
+    'node:http',
+    'node:https',
+    'openai',
+    'deepseek',
+    'anthropic',
+  ];
+
+  for (const file of executionModules) {
+    const rel = relative(projectRoot, file);
+    const text = source(file);
+    for (const spec of importSpecifiers(file)) {
+      for (const banned of forbidden) {
+        assert.ok(
+          !spec.toLowerCase().includes(banned),
+          `${rel} must not import "${spec}" (matched "${banned}") — the paper executor is local-only`,
+        );
+      }
+    }
+    // The forbidden write operations may only be *named* in the module that
+    // declares them as forbidden.
+    if (!rel.endsWith('execution-adapter.mjs')) {
+      for (const operation of [
+        'createOrder',
+        'batchCreateOrders',
+        'amendOrder',
+        'cancelOrder',
+        'cancelAllOrders',
+        'setLeverage',
+        'setMarginMode',
+        'setTradingStop',
+      ]) {
+        assert.ok(
+          !new RegExp(`\\b${operation}\\s*\\(`).test(text),
+          `${rel} must not call the exchange write operation "${operation}"`,
+        );
+      }
+    }
+  }
+});
+
+test('SECURITY: the market layer holds no credentials and only reads', () => {
+  for (const file of modulesUnder('market')) {
+    const rel = relative(projectRoot, file);
+    const text = source(file);
+
+    assert.ok(!text.includes('loadExchangeCredentials'), `${rel} must not load exchange credentials`);
+    assert.ok(!/Authorization|X-BAPI|signature/i.test(text), `${rel} must not build authenticated requests`);
+
+    // Every outbound request in this layer must be a GET to a public endpoint.
+    const verbMatches = text.match(/method:\s*'([A-Z]+)'/g) ?? [];
+    for (const match of verbMatches) {
+      assert.ok(match.includes('GET'), `${rel} must only issue GET requests, found ${match}`);
+    }
+  }
+});
+
+test('SECURITY: no module on the trading path reaches an AI provider', () => {
+  // Checked against imports rather than raw text, so prose in a comment (such as
+  // "JSON/LLM payloads") is not mistaken for a dependency on a model provider.
+  const banned = ['openai', 'deepseek', 'anthropic', 'gemini', '@google/generative', 'langchain', 'transformers'];
+
+  for (const file of allModules) {
+    const rel = relative(projectRoot, file);
+    for (const spec of importSpecifiers(file)) {
+      for (const token of banned) {
+        assert.ok(
+          !spec.toLowerCase().includes(token),
+          `${rel} must not import "${spec}" (matched "${token}") — no AI in this stage`,
+        );
+      }
+    }
+  }
+
+  // No network client may be imported anywhere in the core either, AI or not.
+  for (const file of allModules) {
+    const rel = relative(projectRoot, file);
+    for (const spec of importSpecifiers(file)) {
+      assert.ok(
+        !['node:http', 'node:https', 'axios', 'node-fetch', 'undici'].some((lib) => spec.includes(lib)),
+        `${rel} must not import the network client "${spec}"`,
+      );
+    }
+  }
+});
+
+test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
   const inventory = allModules.map((f) => relative(projectRoot, f)).sort();
 
   // Recorded explicitly so an unexpected new module shows up in review.
   const expected = [
     'src/config/config-error.mjs',
     'src/config/env.mjs',
+    'src/config/paper.mjs',
     'src/config/parse.mjs',
     'src/config/risk.mjs',
     'src/config/trading-mode.mjs',
@@ -316,11 +451,30 @@ test('SECURITY: the module inventory is exactly what Stage 1 intends', () => {
     'src/domain/reason-code.mjs',
     'src/domain/risk-result.mjs',
     'src/domain/side.mjs',
+    'src/execution/execution-adapter.mjs',
+    'src/execution/index.mjs',
     'src/execution/live-guard.mjs',
-    'src/execution/paper-executor.mjs',
+    'src/execution/paper-execution-adapter.mjs',
     'src/index.mjs',
+    'src/market/index.mjs',
+    'src/market/instrument-info.mjs',
+    'src/market/market-data-adapter.mjs',
+    'src/market/market-snapshot.mjs',
+    'src/market/normalize.mjs',
+    'src/market/rest-market-data-adapter.mjs',
+    'src/market/static-market-data-adapter.mjs',
     'src/risk/position-sizing.mjs',
     'src/risk/risk-engine.mjs',
+    'src/session/index.mjs',
+    'src/session/paper-session.mjs',
+    'src/state/daily-state.mjs',
+    'src/state/fee-model.mjs',
+    'src/state/index.mjs',
+    'src/state/journal.mjs',
+    'src/state/jsonl-file.mjs',
+    'src/state/paper-account.mjs',
+    'src/state/paper-position.mjs',
+    'src/state/state-store.mjs',
     'src/util/logger.mjs',
   ].sort();
 

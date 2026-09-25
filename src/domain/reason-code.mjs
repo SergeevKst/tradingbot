@@ -51,6 +51,26 @@ export const REASON_CODE = Object.freeze({
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   UNSUPPORTED_MODE: 'UNSUPPORTED_MODE',
   LIVE_TRADING_DISABLED: 'LIVE_TRADING_DISABLED',
+
+  // --- execution (Stage 2 paper layer) --------------------------------------
+  /** Bid or ask is missing, so no honest fill price can be produced. */
+  MISSING_BID_ASK: 'MISSING_BID_ASK',
+  /** No usable reference price (neither mark nor last) to evaluate triggers. */
+  MISSING_REFERENCE_PRICE: 'MISSING_REFERENCE_PRICE',
+  /** Sizing produced a quantity that does not survive qtyStep/min/max rules. */
+  UNREPRESENTABLE_QUANTITY: 'UNREPRESENTABLE_QUANTITY',
+  /** No open position on that symbol. */
+  NO_OPEN_POSITION: 'NO_OPEN_POSITION',
+  /** A position already exists on that symbol (one net position per symbol). */
+  POSITION_ALREADY_OPEN: 'POSITION_ALREADY_OPEN',
+  /** Instrument metadata was required but not supplied. */
+  MISSING_INSTRUMENT_INFO: 'MISSING_INSTRUMENT_INFO',
+  /** The executor was handed a risk result that was not an approval. */
+  EXECUTION_REQUIRES_APPROVAL: 'EXECUTION_REQUIRES_APPROVAL',
+  /** Protected level failed its own geometry check when being modified. */
+  INVALID_PROTECTION_LEVEL: 'INVALID_PROTECTION_LEVEL',
+  /** The adapter is not permitted to place real orders. */
+  REAL_ORDERS_NOT_PERMITTED: 'REAL_ORDERS_NOT_PERMITTED',
 });
 
 /** @type {readonly string[]} */

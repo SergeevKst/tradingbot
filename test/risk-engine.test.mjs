@@ -11,8 +11,65 @@ import { evaluateTrade } from '../src/risk/risk-engine.mjs';
 import { REASON_CODE } from '../src/domain/reason-code.mjs';
 import { loadConfig } from '../src/config/env.mjs';
 import { ConfigError } from '../src/config/config-error.mjs';
-import { createPaperExecutor } from '../src/execution/paper-executor.mjs';
 import { accountState, longProposal, riskLimits, shortProposal } from './fixtures.mjs';
+import { createPaperSession } from '../src/session/paper-session.mjs';
+import { createStaticMarketDataAdapter } from '../src/market/static-market-data-adapter.mjs';
+import { createRateFeeModel } from '../src/state/fee-model.mjs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+/**
+ * Build an isolated, in-memory paper session for the pipeline tests.
+ *
+ * Uses a throwaway temp directory so these tests never touch the real paper
+ * account, and a static market adapter so no network is involved.
+ */
+async function makePaperSessionForTest() {
+  const directory = await mkdtemp(join(tmpdir(), 'risk-test-'));
+  const session = await createPaperSession({
+    riskConfig: riskLimits(),
+    feeModel: createRateFeeModel({ entryRate: 0.001, exitRate: 0.001 }),
+    paths: {
+      stateFile: join(directory, 'state.json'),
+      journalFile: join(directory, 'journal.jsonl'),
+      initialEquityUsd: 340,
+    },
+    logger: { info() {}, warn() {}, error() {}, debug() {} },
+  });
+  return { session, cleanup: () => rm(directory, { recursive: true, force: true }) };
+}
+
+/**
+ * An offline market snapshot whose book brackets the proposal's entry price,
+ * matching what a real venue would show.
+ *
+ * @param {{ symbol: string, entryPrice: number }} proposal
+ */
+function marketSnapshotFor(proposal) {
+  const adapter = createStaticMarketDataAdapter({
+    instrument: {
+      symbol: proposal.symbol,
+      status: 'Trading',
+      baseCoin: 'BTC',
+      quoteCoin: 'USDT',
+      settleCoin: 'USDT',
+      tickSize: 0.1,
+      qtyStep: 0.001,
+      minOrderQty: 0.001,
+      maxOrderQty: 1500,
+      maxLeverage: 150,
+      minNotionalUsd: 5,
+    },
+    ticker: {
+      lastPrice: proposal.entryPrice,
+      markPrice: proposal.entryPrice,
+      bid: proposal.entryPrice - 0.1,
+      ask: proposal.entryPrice + 0.1,
+    },
+  });
+  return adapter.getSnapshot(proposal.symbol);
+}
 
 // ---------------------------------------------------------------------------
 // TEST 1 — valid LONG is approved
@@ -269,41 +326,49 @@ test('TEST 13b: confidence 0.0 is still evaluated purely on risk', () => {
 });
 
 // ---------------------------------------------------------------------------
-// TEST 14 — PAPER mode never calls Bybit
+// TEST 14 — the PAPER execution path issues no authenticated requests
 // ---------------------------------------------------------------------------
-test('TEST 14: paper mode executes without any network access', async () => {
-  // Trip any outbound HTTP attempt: in PAPER mode none may occur.
-  const originals = { fetch: globalThis.fetch, httpRequest: undefined };
+test('TEST 14: the paper execution path makes no exchange request of its own', async () => {
+  // Stage 2 permits public market-data reads, so the guarantee under test is
+  // narrower and sharper: the *execution* path, given an already-fetched
+  // snapshot, must reach the network for nothing. Any fetch during submit()
+  // would mean the executor is doing exchange work it has no business doing.
+  const originals = { fetch: globalThis.fetch };
   let networkAttempted = false;
   globalThis.fetch = (...args) => {
     networkAttempted = true;
-    throw new Error(`network access attempted in PAPER mode: ${String(args[0])}`);
+    throw new Error(`network access attempted during paper execution: ${String(args[0])}`);
   };
 
   try {
-    const executor = createPaperExecutor();
+    const { session } = await makePaperSessionForTest();
     const proposal = longProposal();
-    const result = evaluateTrade({ proposal, account: accountState() });
-    assert.equal(result.approved, true);
 
-    const fill = executor.execute(proposal, result);
-    assert.equal(fill.simulated, true);
-    assert.equal(executor.canPlaceRealOrders, false);
-    assert.equal(executor.kind, 'PAPER');
-    assert.equal(networkAttempted, false, 'PAPER mode must never attempt network access');
+    // Snapshot obtained before the trap is armed, exactly as the caller does.
+    const market = await marketSnapshotFor(proposal);
+
+    const outcome = await session.submit({ proposal, market });
+    assert.equal(outcome.executed, true, `${outcome.reasonCode}: ${outcome.message}`);
+
+    const account = await session.getAccountState();
+    assert.equal(account.positions.length, 1);
+    assert.equal(networkAttempted, false, 'the paper executor must not perform exchange requests');
   } finally {
     globalThis.fetch = originals.fetch;
   }
 });
 
-test('TEST 14b: the paper executor refuses to execute a rejected proposal', () => {
-  const executor = createPaperExecutor();
+test('TEST 14b: the paper executor refuses to execute a rejected proposal', async () => {
+  const { session } = await makePaperSessionForTest();
   const proposal = longProposal({ stopLossPrice: 87000 });
   const rejected = evaluateTrade({ proposal, account: accountState() });
 
   assert.equal(rejected.approved, false);
-  assert.throws(() => executor.execute(proposal, rejected), ConfigError);
-  assert.equal(executor.count(), 0);
+  const outcome = await session.submit({ proposal, market: marketSnapshotFor(proposal) });
+  assert.equal(outcome.approved, false);
+  assert.equal(outcome.executed, false);
+  const account = await session.getAccountState();
+  assert.equal(account.positions.length, 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -342,9 +407,18 @@ test('TEST 15f: risk per trade above the daily loss limit is refused as incohere
   );
 });
 
-test('TEST 15g: half-configured credentials are refused', () => {
-  assert.throws(() => loadConfig({ BYBIT_API_KEY: 'only-key' }), ConfigError);
-  assert.throws(() => loadConfig({ BYBIT_API_SECRET: 'only-secret' }), ConfigError);
+test('TEST 15g: the trading core ignores credentials entirely', () => {
+  // Stage 2 moved credentials out of the core: `loadConfig` neither reads nor
+  // validates BYBIT_API_KEY / BYBIT_API_SECRET, so a half-configured pair is
+  // simply not its business. PAPER must run with no keys at all.
+  const withHalfCredentials = loadConfig({ BYBIT_API_KEY: 'only-key' });
+  assert.equal(withHalfCredentials.tradingMode, 'PAPER');
+  assert.equal(withHalfCredentials.paper.initialEquityUsd > 0, true);
+
+  const withoutAny = loadConfig({});
+  assert.equal(withoutAny.tradingMode, 'PAPER');
+  assert.equal(withoutAny.credentials.hasApiKey, false);
+  assert.equal(withoutAny.credentials.hasApiSecret, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -386,13 +460,16 @@ test('EDGE: an opposing position on the same symbol is rejected', () => {
   assert.equal(result.reasonCode, REASON_CODE.CONFLICTING_POSITION);
 });
 
-test('EDGE: a symbol already traded today is refused as a duplicate', () => {
+test('EDGE: re-trading a flat symbol later the same day is allowed (Stage 2 removed the day-wide symbol ban)', () => {
+  // Stage 1 refused any second trade on a symbol for the rest of the day. Stage
+  // 2 explicitly forbids that ban: only a *currently open* position blocks a new
+  // entry, so a symbol that is flat again may be traded.
   const result = evaluateTrade({
     proposal: longProposal(),
-    account: accountState({ tradedSymbolsToday: ['BTCUSDT'] }),
+    account: accountState({ tradesToday: 1, openPositions: [] }),
   });
-  assert.equal(result.approved, false);
-  assert.equal(result.reasonCode, REASON_CODE.DUPLICATE_PROPOSAL);
+  assert.equal(result.approved, true, `expected approval, got ${result.reasonCode}: ${result.message}`);
+  assert.equal(result.reasonCode, REASON_CODE.APPROVED);
 });
 
 test('EDGE: zero or negative equity is rejected rather than sized', () => {

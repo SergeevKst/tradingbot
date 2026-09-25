@@ -1,25 +1,26 @@
 #!/usr/bin/env node
 /**
- * Stage 1 bootstrap — a deterministic, offline demonstration of the trading
- * core. It wires config -> risk -> paper execution and nothing else.
+ * PAPER bootstrap — wires config -> market data -> session -> risk -> paper
+ * execution and nothing else.
  *
  * Deliberately NOT present in this process:
- *   - no exchange client, no MCP client, no HTTP;
- *   - no DeepSeek / AI call;
- *   - no order, leverage or account-setting call of any kind.
+ *   - no exchange order/account write call of any kind;
+ *   - no DeepSeek / LLM call;
+ *   - no trading strategy (the proposal below is a fixed plumbing fixture).
  *
- * Run: node --env-file=.env src/index.mjs
+ * In PAPER mode no API key is required: market data is public and the account is
+ * local. Run: node --env-file=.env src/index.mjs
  */
 import { describeConfig, loadConfig } from './config/env.mjs';
 import { TRADING_MODE } from './config/trading-mode.mjs';
-import { createOfflineAccountState } from './domain/account-state.mjs';
-import { createRiskEngine } from './risk/risk-engine.mjs';
-import { createPaperExecutor } from './execution/paper-executor.mjs';
+import { createRateFeeModel } from './state/fee-model.mjs';
+import { createPaperSession } from './session/paper-session.mjs';
+import { createRestMarketDataAdapter } from './market/rest-market-data-adapter.mjs';
 import { createLogger } from './util/logger.mjs';
 
 const logger = createLogger('MAIN');
 
-function main() {
+async function main() {
   // Configuration is validated at startup; an invalid TRADING_MODE or risk
   // limit throws here, before anything else can run.
   const config = loadConfig();
@@ -28,66 +29,94 @@ function main() {
     mode: config.tradingMode,
     testnet: config.testnet,
     logLevel: config.logLevel,
-    // Named so the redactor does not hide it: this is a presence flag, not a secret.
-    keyPresent: config.credentials.hasApiKey,
+    // This build of the core never reads credentials, so there is nothing to
+    // report about them — PAPER runs entirely on public market data.
+    credentialsRequired: false,
   });
   logger.info('risk limits', { ...config.risk });
-
-  const riskEngine = createRiskEngine({ riskConfig: config.risk, logger: createLogger('RISK') });
-  const executor = createPaperExecutor({ logger: createLogger('PAPER') });
 
   if (config.tradingMode === TRADING_MODE.BACKTEST) {
     // BACKTEST has no data feed or simulation engine until a later stage, so it
     // deliberately stops here rather than rehearsing the PAPER pipeline.
-    logger.warn('BACKTEST mode selected — no backtest engine exists yet in Stage 1; nothing to run');
-    logger.info('stage 1 core ready', { mode: config.tradingMode, simulatedFills: 0, realOrdersPlaced: 0 });
+    logger.warn('BACKTEST mode selected — no backtest engine exists yet; nothing to run');
+    logger.info('core ready', { mode: config.tradingMode, simulatedFills: 0, realOrdersPlaced: 0 });
     return;
   }
 
-  // Offline account snapshot. In PAPER mode this stands in for a future live
-  // snapshot; the Risk Engine always sizes from whatever equity it is given.
-  const account = createOfflineAccountState({ equityUsd: config.risk.initialCapitalUsd });
+  const session = await createPaperSession({
+    riskConfig: config.risk,
+    feeModel: createRateFeeModel({ entryRate: config.paper.takerFeeRate, exitRate: config.paper.exitFeeRate }),
+    paths: {
+      stateFile: config.paper.stateFile,
+      journalFile: config.paper.journalFile,
+      initialEquityUsd: config.risk.initialCapitalUsd,
+      persist: config.paper.persist,
+    },
+    logger: createLogger('PAPER'),
+  });
 
-  // A single hand-made proposal, used only to prove the pipeline is wired.
-  // This is NOT a strategy and implies nothing about profitability.
-  const proposal = {
-    symbol: 'BTCUSDT',
-    side: 'LONG',
-    entryPrice: 86000,
-    stopLossPrice: 85280,
-    takeProfitPrice: 87600,
-    confidence: 0.5,
-    strategyId: 'bootstrap-demo',
-    timestamp: Date.now(),
-  };
+  const account = await session.getAccountState();
+  logger.info(session.restored ? 'paper state restored from disk' : 'new paper account created', {
+    equityUsd: account.equityUsd,
+    initialEquityUsd: account.initialEquityUsd,
+    openPositions: account.positions.length,
+    tradesToday: account.tradesToday,
+  });
 
-  logger.info('evaluating demonstration proposal', { note: 'deterministic core check, not a trade recommendation' });
-  const result = riskEngine.evaluate({ proposal, account });
+  // Public market data only; no credentials involved.
+  const marketData = createRestMarketDataAdapter({
+    baseUrl: config.bybitBaseUrl,
+    category: config.paper.market.category,
+    timeoutMs: config.paper.market.requestTimeoutMs,
+  });
 
-  if (result.approved) {
-    const fill = executor.execute(proposal, result);
-    logger.info('paper fill (simulated)', {
-      symbol: fill.symbol,
-      side: fill.side,
-      qty: fill.estimatedQuantity ?? fill.quantity,
-      notionalUsd: fill.notionalUsd,
-      simulated: true,
-    });
-  } else {
-    logger.info('proposal rejected', { reason: result.reasonCode, message: result.message });
+  const symbol = config.paper.defaultSymbol;
+  const snapshot = await marketData.getSnapshot(symbol, {
+    interval: config.paper.market.defaultInterval,
+    candleLimit: 5,
+    includeCandles: true,
+  });
+
+  logger.info('market snapshot', {
+    symbol: snapshot.symbol,
+    last: snapshot.lastPrice,
+    mark: snapshot.markPrice,
+    bid: snapshot.bid,
+    ask: snapshot.ask,
+    spread: snapshot.spread,
+    candles: snapshot.candles.length,
+    tickSize: snapshot.instrument?.tickSize,
+    qtyStep: snapshot.instrument?.qtyStep,
+  });
+
+  // Re-price any restored positions against the current market before doing
+  // anything else, so stops and targets are evaluated on live data.
+  const marketUpdate = await session.onMarketUpdate(snapshot);
+  if (marketUpdate.closed.length > 0) {
+    for (const closed of marketUpdate.closed) {
+      logger.info('position closed by market update', {
+        symbol: closed.symbol,
+        exitReason: closed.exitReason,
+        netPnlUsd: closed.netPnlUsd,
+      });
+    }
   }
 
-  logger.info('stage 1 core ready', {
+  logger.info('paper engine ready', {
     mode: config.tradingMode,
-    simulatedFills: executor.count(),
+    restorable: true,
+    stateFile: config.paper.stateFile,
+    journalFile: config.paper.journalFile,
     realOrdersPlaced: 0,
+    note: 'submit proposals via npm run paper:simulate',
   });
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
-  // Configuration and startup failures are loud and explicit — never swallowed.
+  // Configuration, state-recovery and startup failures are loud and explicit —
+  // never swallowed, and never resolved by inventing a fresh account.
   createLogger('MAIN').error('startup failed', {
     error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
     field: /** @type {any} */ (error)?.field,

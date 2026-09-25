@@ -215,14 +215,9 @@ function evaluateTradeUnsafe(input) {
     );
   }
 
-  // --- duplicate symbol earlier today --------------------------------------
-  if (account.tradedSymbolsToday.includes(proposal.symbol)) {
-    return rejectedResult(
-      REASON_CODE.DUPLICATE_PROPOSAL,
-      `${proposal.symbol} has already been traded today — duplicate proposals are refused`,
-      context,
-    );
-  }
+  // Note: re-trading a symbol later the same day is intentionally ALLOWED.
+  // A flat position does not block a fresh entry; only a *currently open*
+  // position does (checked above).
 
   // --- market sanity (when market data is supplied) -------------------------
   if (market.markPrice !== null && market.markPrice > 0) {

@@ -6,17 +6,21 @@
  * keeps configuration decisions in one reviewable place and makes the trading
  * core trivially testable with an injected environment.
  *
- * Secrets are read here and held behind an explicit accessor. They are never
- * logged: `describeConfig()` intentionally omits every credential and reports
- * presence as a boolean instead.
+ * Credential isolation (Stage 2 requirement)
+ * ------------------------------------------
+ * `loadConfig()` — used by the trading core — reads NO exchange credentials at
+ * all. It cannot leak what it never touches, and PAPER mode runs without any
+ * `BYBIT_API_KEY` / `BYBIT_API_SECRET` being present. Credentials are reachable
+ * only through `loadExchangeCredentials()`, which is intended for the
+ * standalone operational scripts and is never called on the trading path.
  *
  * @module config/env
  */
 import { ConfigError } from './config-error.mjs';
-import { parseBoolean, parseEnum } from './parse.mjs';
-import { isAbsent } from './parse.mjs';
+import { isAbsent, parseBoolean, parseEnum } from './parse.mjs';
 import { TRADING_MODE, isOfflineMode, resolveTradingMode } from './trading-mode.mjs';
 import { loadRiskLimits } from './risk.mjs';
+import { loadPaperConfig } from './paper.mjs';
 
 /** Log verbosity levels, ordered from most to least severe. */
 export const LOG_LEVEL = Object.freeze({
@@ -41,12 +45,17 @@ const BYBIT_HOSTS = Object.freeze({
  * @property {boolean} testnet
  * @property {string} bybitBaseUrl
  * @property {import('./risk.mjs').RiskLimits} risk
+ * @property {import('./paper.mjs').PaperConfig & { market: import('./paper.mjs').MarketConfig }} paper
  * @property {string} logLevel
  * @property {{ hasApiKey: boolean, hasApiSecret: boolean }} credentials presence only
  */
 
 /**
  * Load and validate the application configuration.
+ *
+ * Deliberately never reads BYBIT_API_KEY / BYBIT_API_SECRET: the trading core
+ * has no business knowing them. `credentials` is reported as `false/false` for
+ * information only, so callers cannot use `loadConfig` as a credential probe.
  *
  * @param {Record<string, string | undefined>} [env] environment source (defaults to process.env)
  * @returns {Readonly<AppConfig>}
@@ -68,32 +77,20 @@ export function loadConfig(env = process.env) {
     uppercase: true,
   });
 
-  // A LIVE configuration is refused outright in Stage 1. Two independent
+  // A LIVE configuration is refused outright in Stages 1-2. Two independent
   // reasons, both explicit: the execution layer does not exist, and a
   // live-intended run that silently degraded to simulation would be worse
   // than one that refuses to start.
   if (tradingMode === TRADING_MODE.LIVE) {
     if (!liveTradingAllowed) {
       throw new ConfigError(
-        'TRADING_MODE=LIVE requires ALLOW_LIVE_TRADING=true. Live execution is not implemented in Stage 1.',
+        'TRADING_MODE=LIVE requires ALLOW_LIVE_TRADING=true. Live execution is not implemented.',
         { field: 'ALLOW_LIVE_TRADING', value: env.ALLOW_LIVE_TRADING },
       );
     }
     throw new ConfigError(
-      'TRADING_MODE=LIVE is not supported in Stage 1: no live execution path exists. Use PAPER or BACKTEST.',
+      'TRADING_MODE=LIVE is not supported: no live execution path exists. Use PAPER or BACKTEST.',
       { field: 'TRADING_MODE', value: tradingMode },
-    );
-  }
-
-  const hasApiKey = !isAbsent(env.BYBIT_API_KEY);
-  const hasApiSecret = !isAbsent(env.BYBIT_API_SECRET);
-
-  // Credentials are optional in offline modes and required only later, but a
-  // half-configured pair is always a mistake worth failing on.
-  if (hasApiKey !== hasApiSecret) {
-    throw new ConfigError(
-      'Incomplete Bybit credentials: BYBIT_API_KEY and BYBIT_API_SECRET must be provided together',
-      { field: hasApiKey ? 'BYBIT_API_SECRET' : 'BYBIT_API_KEY' },
     );
   }
 
@@ -105,25 +102,29 @@ export function loadConfig(env = process.env) {
     testnet,
     bybitBaseUrl: testnet ? BYBIT_HOSTS.TESTNET : BYBIT_HOSTS.MAINNET,
     risk: loadRiskLimits(env),
+    paper: loadPaperConfig(env),
     logLevel,
-    credentials: Object.freeze({ hasApiKey, hasApiSecret }),
+    // Always false by design: the core does not read credentials.
+    credentials: Object.freeze({ hasApiKey: false, hasApiSecret: false }),
   };
 
   return Object.freeze(config);
 }
 
 /**
- * Read credentials. Kept separate from `loadConfig` so that the credential
- * values never travel inside the config object that gets logged or passed
- * around.
+ * Read exchange credentials.
+ *
+ * The ONLY credential accessor in the project. Used by standalone operational
+ * scripts (`scripts/`); the trading core never imports or calls it, and PAPER
+ * mode runs entirely without keys.
  *
  * @param {Record<string, string | undefined>} [env]
  * @returns {{ apiKey: string, apiSecret: string }}
  * @throws {ConfigError} when either credential is missing
  */
-export function loadCredentials(env = process.env) {
+export function loadExchangeCredentials(env = process.env) {
   if (isAbsent(env.BYBIT_API_KEY) || isAbsent(env.BYBIT_API_SECRET)) {
-    throw new ConfigError('Bybit credentials are required for this operation but were not provided', {
+    throw new ConfigError('Exchange credentials are required for this operation but were not provided', {
       field: 'BYBIT_API_KEY/BYBIT_API_SECRET',
     });
   }
@@ -133,7 +134,8 @@ export function loadCredentials(env = process.env) {
 /**
  * A safe, log-ready description of the configuration.
  *
- * Contains no secret material whatsoever — credentials are reduced to booleans.
+ * Contains no secret material whatsoever, and reports no credential state
+ * because the core cannot observe it.
  *
  * @param {Readonly<AppConfig>} config
  */
@@ -142,9 +144,8 @@ export function describeConfig(config) {
     tradingMode: config.tradingMode,
     offlineMode: config.offlineMode,
     testnet: config.testnet,
-    bybitBaseUrl: config.bybitBaseUrl,
     logLevel: config.logLevel,
-    credentials: { ...config.credentials },
     risk: { ...config.risk },
+    paper: { ...config.paper },
   };
 }
