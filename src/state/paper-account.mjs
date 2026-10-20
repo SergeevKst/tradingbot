@@ -16,6 +16,7 @@
  */
 import { ConfigError } from '../config/config-error.mjs';
 import { SIDE } from '../domain/side.mjs';
+import { createPortfolioSnapshot, createPnLSnapshot } from '../domain/portfolio.mjs';
 import { validatePaperPosition } from './paper-position.mjs';
 
 /**
@@ -31,6 +32,7 @@ import { validatePaperPosition } from './paper-position.mjs';
  * @property {number} tradesToday approved entries taken today
  * @property {number} dailyRealizedPnlUsd realized PnL since the UTC day started
  * @property {number} dayStartEquityUsd equity at the start of the UTC day
+ * @property {number} peakEquityUsd equity high-water mark, for the drawdown limit
  * @property {string} lastUpdatedAt ISO timestamp
  */
 
@@ -59,6 +61,7 @@ export function createPaperAccountState(seed) {
     tradesToday: 0,
     dailyRealizedPnlUsd: 0,
     dayStartEquityUsd: seed.equityUsd,
+    peakEquityUsd: seed.equityUsd,
     lastUpdatedAt: timestamp,
   });
 }
@@ -87,6 +90,11 @@ export function recomputeAccount(state) {
   const unrealizedPnlUsd = state.positions.reduce((sum, position) => sum + position.unrealizedPnlUsd, 0);
   const equityUsd = state.realizedPnlUsd + state.initialEquityUsd + unrealizedPnlUsd - state.feesUsd;
   const availableBalanceUsd = equityUsd - lockedMarginUsd(state);
+  // The high-water mark only ever rises: it is the peak equity the account has
+  // reached, which is exactly what the risk layer's drawdown limit measures
+  // against. A fresh/absent peak starts at the current equity.
+  const priorPeak = Number.isFinite(state.peakEquityUsd) ? Number(state.peakEquityUsd) : equityUsd;
+  const peakEquityUsd = Math.max(priorPeak, equityUsd);
 
   return Object.freeze({
     ...state,
@@ -95,6 +103,7 @@ export function recomputeAccount(state) {
     equityUsd: equityUsd === 0 ? 0 : equityUsd,
     unrealizedPnlUsd: unrealizedPnlUsd === 0 ? 0 : unrealizedPnlUsd,
     availableBalanceUsd: availableBalanceUsd === 0 ? 0 : availableBalanceUsd,
+    peakEquityUsd,
   });
 }
 
@@ -175,6 +184,9 @@ export function validatePaperAccountState(raw) {
     tradesToday: numeric.tradesToday,
     dailyRealizedPnlUsd: Number.isFinite(Number(input.dailyRealizedPnlUsd)) ? Number(input.dailyRealizedPnlUsd) : 0,
     dayStartEquityUsd: numeric.dayStartEquityUsd,
+    // Older persisted state predates the high-water mark; it re-bases on the
+    // initial equity rather than refusing to restore.
+    peakEquityUsd: Number.isFinite(Number(input.peakEquityUsd)) ? Number(input.peakEquityUsd) : initialEquityUsd,
     lastUpdatedAt: typeof input.lastUpdatedAt === 'string' ? input.lastUpdatedAt : new Date().toISOString(),
   });
 
@@ -189,19 +201,21 @@ export function validatePaperAccountState(raw) {
  * it needs keeps the risk layer independent of paper-specific bookkeeping.
  *
  * @param {Readonly<PaperAccountState>} state
- * @returns {{ equityUsd: number, availableBalanceUsd: number, dailyRealizedPnlUsd: number, tradesToday: number, openPositions: Array<{ symbol: string, side: string, quantity: number, entryPrice: number, unrealizedPnlUsd: number }>, openOrders: unknown[] }}
+ * @returns {{ equityUsd: number, availableBalanceUsd: number, dailyRealizedPnlUsd: number, peakEquityUsd: number, tradesToday: number, openPositions: Array<{ symbol: string, side: string, quantity: number, entryPrice: number, notionalUsd: number, unrealizedPnlUsd: number }>, openOrders: unknown[] }}
  */
 export function toRiskAccountView(state) {
   return {
     equityUsd: state.equityUsd,
     availableBalanceUsd: state.availableBalanceUsd,
     dailyRealizedPnlUsd: state.dailyRealizedPnlUsd,
+    peakEquityUsd: state.peakEquityUsd,
     tradesToday: state.tradesToday,
     openPositions: state.positions.map((position) => ({
       symbol: position.symbol,
       side: position.side,
       quantity: position.quantity,
       entryPrice: position.entryPrice,
+      notionalUsd: position.entryPrice * position.quantity,
       unrealizedPnlUsd: position.unrealizedPnlUsd,
     })),
     openOrders: [],
@@ -224,6 +238,80 @@ export function describeAccount(state) {
     tradesToday: state.tradesToday,
     dailyRealizedPnlUsd: round2(state.dailyRealizedPnlUsd),
   };
+}
+
+/**
+ * Project a paper position into the exchange-neutral `Position` domain type
+ * (MASTER_SPEC §7). The paper ledger keeps extra simulation fields (entry fee,
+ * initial margin); the projection emits only the documented portfolio shape.
+ *
+ * @param {import('./paper-position.mjs').PaperPosition} position
+ * @returns {Readonly<import('../domain/position.mjs').Position>}
+ */
+export function toDomainPosition(position) {
+  return Object.freeze({
+    symbol: position.symbol,
+    side: position.side,
+    quantity: position.quantity,
+    entryPrice: position.entryPrice,
+    markPrice: position.markPrice,
+    leverage: position.leverage,
+    ...(Number.isFinite(position.stopLoss) ? { stopLossPrice: Number(position.stopLoss) } : {}),
+    ...(Number.isFinite(position.takeProfit) ? { takeProfitPrice: Number(position.takeProfit) } : {}),
+    unrealizedPnlUsd: position.unrealizedPnlUsd,
+    openedAt: Date.parse(position.openedAt),
+    status: 'OPEN',
+  });
+}
+
+/**
+ * Assemble a validated `PortfolioSnapshot` (MASTER_SPEC §7) from the paper
+ * ledger. The snapshot is a read-only, frozen view — it never mutates state.
+ *
+ * @param {Readonly<PaperAccountState>} state
+ * @param {{ timestamp?: number, source?: string }} [options]
+ * @returns {Readonly<import('../domain/portfolio.mjs').PortfolioSnapshot>}
+ */
+export function toPortfolioSnapshot(state, options = {}) {
+  const timestamp = Number.isFinite(options.timestamp) ? /** @type {number} */ (options.timestamp) : Date.now();
+  return createPortfolioSnapshot({
+    equityUsd: state.equityUsd,
+    availableBalanceUsd: state.availableBalanceUsd,
+    balances: [
+      {
+        asset: 'USDT',
+        walletBalanceUsd: state.equityUsd,
+        availableBalanceUsd: state.availableBalanceUsd,
+        unrealizedPnlUsd: state.unrealizedPnlUsd,
+        updatedAt: timestamp,
+      },
+    ],
+    positions: state.positions.map(toDomainPosition),
+    source: options.source ?? 'paper',
+    timestamp,
+  });
+}
+
+/**
+ * Assemble a validated `PnLSnapshot` (MASTER_SPEC §7) from the paper ledger.
+ *
+ * Paper `realizedPnlUsd` is gross of fees, so the net figure subtracts them:
+ * `netPnlUsd = realized + unrealized - fees`.
+ *
+ * @param {Readonly<PaperAccountState>} state
+ * @param {{ symbol?: string, timestamp?: number }} [options]
+ * @returns {Readonly<import('../domain/portfolio.mjs').PnLSnapshot>}
+ */
+export function toPnLSnapshot(state, options = {}) {
+  const timestamp = Number.isFinite(options.timestamp) ? /** @type {number} */ (options.timestamp) : Date.now();
+  return createPnLSnapshot({
+    realizedPnlUsd: state.realizedPnlUsd,
+    unrealizedPnlUsd: state.unrealizedPnlUsd,
+    feesUsd: state.feesUsd,
+    netPnlUsd: state.realizedPnlUsd + state.unrealizedPnlUsd - state.feesUsd,
+    ...(options.symbol ? { symbol: options.symbol } : {}),
+    timestamp,
+  });
 }
 
 /**

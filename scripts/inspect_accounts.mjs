@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 // READ-ONLY: inspect every Bybit account bucket + Earn positions. No writes.
 import { createHmac } from 'node:crypto';
-const KEY = process.env.BYBIT_API_KEY, SECRET = process.env.BYBIT_API_SECRET, RW = '5000';
+const isTestnet = process.env.BYBIT_TESTNET === 'true' || process.env.TESTNET_ENABLED === 'true';
+const KEY = isTestnet
+  ? (process.env.BYBIT_TESTNET_API_KEY || process.env.BYBIT_API_KEY)
+  : process.env.BYBIT_API_KEY;
+const SECRET = isTestnet
+  ? (process.env.BYBIT_TESTNET_API_SECRET || process.env.BYBIT_API_SECRET)
+  : process.env.BYBIT_API_SECRET;
+const RW = '5000';
 const BASE = process.env.BYBIT_TESTNET === 'true' ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com';
 const sign = (ts, q) => createHmac('sha256', SECRET).update(ts + KEY + RW + q).digest('hex');
 

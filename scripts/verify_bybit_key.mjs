@@ -2,12 +2,17 @@
 // Verify Bybit V5 API credentials (HMAC-SHA256) against mainnet and testnet.
 import { createHmac } from 'node:crypto';
 
-const API_KEY = process.env.BYBIT_API_KEY;
-const API_SECRET = process.env.BYBIT_API_SECRET;
+const isTestnet = process.env.BYBIT_TESTNET === 'true' || process.env.TESTNET_ENABLED === 'true';
+const API_KEY = isTestnet
+  ? (process.env.BYBIT_TESTNET_API_KEY || process.env.BYBIT_API_KEY)
+  : process.env.BYBIT_API_KEY;
+const API_SECRET = isTestnet
+  ? (process.env.BYBIT_TESTNET_API_SECRET || process.env.BYBIT_API_SECRET)
+  : process.env.BYBIT_API_SECRET;
 const RECV_WINDOW = '5000';
 
 if (!API_KEY || !API_SECRET) {
-  console.error('Missing BYBIT_API_KEY / BYBIT_API_SECRET');
+  console.error('Missing BYBIT_API_KEY / BYBIT_API_SECRET (or BYBIT_TESTNET_* for testnet)');
   process.exit(2);
 }
 

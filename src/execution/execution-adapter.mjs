@@ -55,7 +55,11 @@ export const FORBIDDEN_EXCHANGE_OPERATIONS = Object.freeze([
  * @typedef {object} Fill
  * @property {string} symbol
  * @property {'LONG' | 'SHORT'} side
- * @property {number} quantity
+ * @property {number} quantity filled quantity (equals `filledQuantity`)
+ * @property {number} [requestedQuantity] size that was ordered, when it differs
+ * @property {number} [filledQuantity] filled size; a partial fill is smaller
+ * @property {number} [unfilledQuantity] cancelled remainder of a partial fill
+ * @property {boolean} [partial] true when the order only partly filled
  * @property {number} requestedPrice price the caller expected
  * @property {number} fillPrice price actually simulated
  * @property {number} slippageUsd signed cost of the simulated slippage

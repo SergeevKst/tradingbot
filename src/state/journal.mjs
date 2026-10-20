@@ -22,11 +22,63 @@ export const JOURNAL_EVENT = Object.freeze({
   RISK_REJECTED: 'RISK_REJECTED',
   ORDER_SUBMITTED: 'ORDER_SUBMITTED',
   ORDER_FILLED: 'ORDER_FILLED',
+  // A market order that only partly filled; the remainder was cancelled. Kept
+  // separate from ORDER_FILLED so the shortfall is explicit in the history.
+  PARTIAL_FILL: 'PARTIAL_FILL',
   POSITION_OPENED: 'POSITION_OPENED',
   POSITION_UPDATED: 'POSITION_UPDATED',
   STOP_LOSS_FILLED: 'STOP_LOSS_FILLED',
   TAKE_PROFIT_FILLED: 'TAKE_PROFIT_FILLED',
   POSITION_CLOSED: 'POSITION_CLOSED',
+  // Strategy layer (MASTER_SPEC §20-21, §25): the auditable record of what a
+  // strategy decided, including a deliberate "no signal".
+  STRATEGY_DECISION: 'STRATEGY_DECISION',
+  // Emergency stop (MASTER_SPEC §44): engaging/releasing the kill switch is an
+  // operational act, so it belongs in the same append-only history.
+  KILL_SWITCH_ENGAGED: 'KILL_SWITCH_ENGAGED',
+  KILL_SWITCH_DISENGAGED: 'KILL_SWITCH_DISENGAGED',
+  // One-shot TESTNET_ONCE. A second submission is refused by the execution-layer
+  // guard, and the session records its graceful shutdown, so the at-most-once
+  // invariant is auditable from the same history.
+  TESTNET_ONCE_ORDER_BLOCKED: 'TESTNET_ONCE_ORDER_BLOCKED',
+  TESTNET_ONCE_SHUTDOWN: 'TESTNET_ONCE_SHUTDOWN',
+  // Market-data observability (MASTER_SPEC §20-21). The market-data layer never
+  // writes to disk itself; it emits these to an injected observer, which may be
+  // this journal.
+  MARKET_DATA_CONNECTED: 'MARKET_DATA_CONNECTED',
+  MARKET_DATA_DISCONNECTED: 'MARKET_DATA_DISCONNECTED',
+  MARKET_DATA_TICK: 'MARKET_DATA_TICK',
+  MARKET_DATA_ERROR: 'MARKET_DATA_ERROR',
+  // Backtesting (MASTER_SPEC §27-28). A backtest replays the same trading
+  // events as PAPER plus its own run boundaries and per-bar anomalies, so the
+  // whole run is auditable from one append-only history.
+  BACKTEST_STARTED: 'BACKTEST_STARTED',
+  BACKTEST_BAR: 'BACKTEST_BAR',
+  BACKTEST_COMPLETED: 'BACKTEST_COMPLETED',
+  // Reconciliation and recovery (MASTER_SPEC §13-15, Phase 9). Every decision
+  // the recovery layer makes is auditable from the same append-only history:
+  // an intent was reserved, an order was accepted, a duplicate was refused, a
+  // state could not be determined, or local and exchange state disagreed.
+  ORDER_SUBMIT_ATTEMPTED: 'ORDER_SUBMIT_ATTEMPTED',
+  ORDER_SUBMITTED: 'ORDER_SUBMITTED',
+  ORDER_SUBMIT_FAILED: 'ORDER_SUBMIT_FAILED',
+  ORDER_SUBMIT_UNKNOWN: 'ORDER_SUBMIT_UNKNOWN',
+  DUPLICATE_ORDER_BLOCKED: 'DUPLICATE_ORDER_BLOCKED',
+  ORDER_RECONCILED: 'ORDER_RECONCILED',
+  ORDER_RECONCILE_MISMATCH: 'ORDER_RECONCILE_MISMATCH',
+  RECOVERY_STARTED: 'RECOVERY_STARTED',
+  RECOVERY_COMPLETED: 'RECOVERY_COMPLETED',
+  RECOVERY_FAILED: 'RECOVERY_FAILED',
+  // Live safety gate (MASTER_SPEC Phase 10, §46). Live is the one mode where an
+  // unlogged action is unacceptable, so activation attempts, their outcome, the
+  // gate evaluation and every emergency-control act are append-only history.
+  LIVE_ACTIVATION_ATTEMPTED: 'LIVE_ACTIVATION_ATTEMPTED',
+  LIVE_ACTIVATION_GRANTED: 'LIVE_ACTIVATION_GRANTED',
+  LIVE_ACTIVATION_REFUSED: 'LIVE_ACTIVATION_REFUSED',
+  LIVE_GATE_EVALUATED: 'LIVE_GATE_EVALUATED',
+  LIVE_SUBMIT_REFUSED: 'LIVE_SUBMIT_REFUSED',
+  LIVE_EMERGENCY_ENGAGED: 'LIVE_EMERGENCY_ENGAGED',
+  LIVE_EMERGENCY_RELEASED: 'LIVE_EMERGENCY_RELEASED',
 });
 
 /** @type {readonly string[]} */

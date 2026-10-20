@@ -14,10 +14,14 @@ export { DEFAULT_RISK_LIMITS };
  * @param {Partial<{ equityUsd: number, availableBalanceUsd: number, dailyRealizedPnlUsd: number, openPositions: any[], openOrders: any[], tradesToday: number, tradedSymbolsToday: string[] }>} [overrides]
  */
 export function accountState(overrides = {}) {
+  const equityUsd = overrides.equityUsd ?? 340;
   return {
-    equityUsd: 340,
-    availableBalanceUsd: 340,
+    equityUsd,
+    availableBalanceUsd: equityUsd,
     dailyRealizedPnlUsd: 0,
+    // Default the high-water mark to the current equity so the fixture starts
+    // with no drawdown unless a test says otherwise.
+    peakEquityUsd: equityUsd,
     openPositions: [],
     openOrders: [],
     tradesToday: 0,
@@ -63,5 +67,5 @@ export function shortProposal(overrides = {}) {
 
 /** Risk limits with an override applied. */
 export function riskLimits(overrides = {}) {
-  return { ...DEFAULT_RISK_LIMITS, ...overrides };
+  return { ...DEFAULT_RISK_LIMITS, killSwitchEnabled: false, ...overrides };
 }

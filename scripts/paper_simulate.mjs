@@ -4,15 +4,20 @@
  * data: proposal -> risk -> paper execution -> persistence -> journal.
  *
  * This is the manual harness for inspecting the paper loop. It places no real
- * orders (it cannot — the executor has no exchange client) and implements no
- * strategy: the proposal below is a fixed fixture derived from the current
- * market, used to exercise the plumbing.
+ * orders (it cannot — the executor has no exchange client).
+ *
+ * Two proposal sources:
+ *   (default)      a fixed plumbing fixture derived from the current market;
+ *   --strategy ID  run the registered strategy ID over real candles and submit
+ *                  whatever it emits. The MA-crossover strategy needs a candle
+ *                  history, so more candles are fetched in this mode.
  *
  * Usage:
  *   npm run paper:simulate
  *   npm run paper:simulate -- --symbol ETHUSDT
  *   npm run paper:simulate -- --side SHORT
  *   npm run paper:simulate -- --close
+ *   npm run paper:simulate -- --strategy deterministic-ma-crossover
  */
 import { loadConfig } from '../src/config/env.mjs';
 import { createRateFeeModel } from '../src/state/fee-model.mjs';
@@ -62,9 +67,11 @@ try {
   });
 
   const symbol = String(args.symbol ?? 'BTCUSDT').toUpperCase();
+  // A strategy needs a real candle history; the fixture needs almost nothing.
+  const candleLimit = args.strategy ? 60 : 5;
   const snapshot = await marketData.getSnapshot(symbol, {
     interval: config.paper.market.defaultInterval,
-    candleLimit: 5,
+    candleLimit,
     includeCandles: true,
   });
 
@@ -97,6 +104,22 @@ try {
           ? `CLOSED ${position.symbol} at ${result.fill.fillPrice}, net ${result.fill.netPnlUsd.toFixed(4)} USD`
           : `close failed: ${result.reasonCode} — ${result.message}`,
       );
+    }
+  } else if (args.strategy) {
+    // Run the registered strategy and submit its decision through the same
+    // risk -> execution path. It may legitimately emit nothing.
+    const strategyId = String(args.strategy);
+    const outcome = await session.submitFromStrategy({ market: snapshot, strategyId });
+
+    console.log(`STRATEGY (${strategyId})`);
+    if (!outcome.signal) {
+      console.log('  decision  : NO_SIGNAL — nothing submitted');
+    } else {
+      console.log('  proposal  :', JSON.stringify(outcome.proposal));
+      console.log('  approved  :', outcome.approved);
+      console.log('  executed  :', outcome.executed);
+      console.log('  reason    :', outcome.reasonCode);
+      if (outcome.message) console.log('  message   :', outcome.message);
     }
   } else if (!args.state) {
     // Build a fixture proposal from live market data. This is NOT a strategy: a

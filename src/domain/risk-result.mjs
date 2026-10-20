@@ -51,6 +51,14 @@ import { REASON_CODE, coerceReasonCode } from './reason-code.mjs';
  */
 
 /**
+ * MASTER_SPEC §7 names the Risk Engine's output "RiskDecision". `RiskResult` is
+ * that decision; the alias exists so the specification vocabulary maps cleanly
+ * onto the implemented type.
+ *
+ * @typedef {RiskResult} RiskDecision
+ */
+
+/**
  * Build an approval result.
  *
  * @param {Omit<ApprovedRiskResult, 'approved' | 'reasonCode' | 'evaluatedAt'> & { evaluatedAt?: string }} fields

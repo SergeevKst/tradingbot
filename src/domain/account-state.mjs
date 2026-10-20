@@ -30,6 +30,8 @@ import { REASON_CODE } from './reason-code.mjs';
  * @property {number} equityUsd total account equity in USD (the sizing base)
  * @property {number} availableBalanceUsd free margin in USD
  * @property {number} dailyRealizedPnlUsd realised PnL for the current UTC day
+ * @property {number} peakEquityUsd equity high-water mark used for the drawdown check;
+ *   defaults to the current equity when the caller cannot supply it (no drawdown known)
  * @property {OpenPosition[]} openPositions
  * @property {OpenOrder[]} openOrders
  * @property {number} [tradesToday] approved trades already taken today
@@ -61,6 +63,7 @@ export function validateAccountState(raw) {
   const equityUsd = toFinite(input.equityUsd);
   const availableBalanceUsd = toFinite(input.availableBalanceUsd);
   const dailyRealizedPnlUsd = toFinite(input.dailyRealizedPnlUsd);
+  const rawPeakEquityUsd = toFinite(input.peakEquityUsd);
 
   if (equityUsd === null || equityUsd <= 0) {
     return { valid: false, reasonCode: REASON_CODE.INVALID_ACCOUNT_STATE, state: null };
@@ -71,6 +74,13 @@ export function validateAccountState(raw) {
   if (dailyRealizedPnlUsd === null) {
     return { valid: false, reasonCode: REASON_CODE.INVALID_ACCOUNT_STATE, state: null };
   }
+  // A supplied peak must be a real positive number. It is clamped up to the
+  // current equity so a stale/rounded peak can never fabricate a drawdown or,
+  // worse, a negative one.
+  if (input.peakEquityUsd !== undefined && input.peakEquityUsd !== null && (rawPeakEquityUsd === null || rawPeakEquityUsd <= 0)) {
+    return { valid: false, reasonCode: REASON_CODE.INVALID_ACCOUNT_STATE, state: null };
+  }
+  const peakEquityUsd = Math.max(rawPeakEquityUsd ?? equityUsd, equityUsd);
 
   const openPositions = Array.isArray(input.openPositions) ? input.openPositions : [];
   const openOrders = Array.isArray(input.openOrders) ? input.openOrders : [];
@@ -96,6 +106,7 @@ export function validateAccountState(raw) {
     equityUsd,
     availableBalanceUsd,
     dailyRealizedPnlUsd,
+    peakEquityUsd,
     openPositions: Object.freeze(openPositions.map((p) => {
       const pos = /** @type {Record<string, unknown>} */ (p);
       return Object.freeze({
@@ -133,6 +144,7 @@ export function createOfflineAccountState(seed) {
     equityUsd: seed.equityUsd,
     availableBalanceUsd: seed.availableBalanceUsd ?? seed.equityUsd,
     dailyRealizedPnlUsd: seed.dailyRealizedPnlUsd ?? 0,
+    peakEquityUsd: seed.equityUsd,
     openPositions: [],
     openOrders: [],
     tradesToday: 0,

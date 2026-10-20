@@ -1,0 +1,6 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "plugin": [
+    "file:///Users/konstantinsergeev/Documents/AI%20projects/tradingbot/.kilo/plugins/graphify.js"
+  ]
+}

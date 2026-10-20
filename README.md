@@ -9,8 +9,11 @@
 - ✅ API-ключи проверены (mainnet, HMAC-SHA256)
 - ✅ 348.05 USDT выведены из Earn в торговый аккаунт (UNIFIED), позиций нет
 - ✅ ЭТАП 1: детерминированное ядро (config + risk + paper), 59 тестов зелёные
-- ✅ ЭТАП 2: market data + paper execution + persistent state, 176 тестов зелёные
-- ⏳ Стратегии, бэктест, AI — следующие этапы
+- ✅ ЭТАП 2: market data + paper execution + persistent state
+- ✅ ЭТАП 3: strategy layer (interface + registry + MA crossover) и operational kill switch
+- ✅ ЭТАП 4: risk engine hardening — exposure caps (per-symbol + total), max drawdown, kill switch на уровне движка
+- ✅ ЭТАП 5: simulation hardening — pluggable fill model (partial fills), exit-slippage, portfolio/PnL domain snapshots, risk-before-execution, 332 теста зелёные
+- ⏳ Бэктест, AI — следующие этапы
 
 ## ЭТАП 1 — безопасный фундамент
 
@@ -65,14 +68,21 @@ riskAmountUsd       = equity * riskPerTradePct / 100
 positionNotionalUsd = riskAmountUsd / stopLossDistanceFraction
 ```
 
-Затем позиция ужимается по `maxLeverage` и доступному балансу. Если после ужатия
-ноторн оказывается ниже `minPositionNotionalUsd` — отказ, а не «пыль».
+Затем позиция ужимается по `maxLeverage`, exposure-лимитам (`maxSymbolExposurePct`
+на символ и `maxTotalExposurePct` на весь аккаунт, как процент equity) и
+доступному балансу. Если после ужатия ноториал оказывается ниже
+`minPositionNotionalUsd` — отказ, а не «пыль».
+
+Дополнительные жёсткие гейты: `maxDailyLossPct` (дневной убыток),
+`maxDrawdownPct` (просадка от peak equity), лимиты числа позиций/сделок и
+kill switch (статический флаг конфига + runtime-состояние, которое передаётся в
+движок явно). Любой из них — отказ, без обходных путей.
 
 ### Команды
 
 ```bash
 npm start                    # bootstrap ядра (PAPER по умолчанию)
-npm test                     # 59 тестов
+npm test                     # 332 теста
 npm run test:security        # только проверки изоляции
 ```
 
@@ -96,8 +106,9 @@ TRADING_MODE=TURBO npm start      # отказ на старте, exit 1
 
 > **PAPER mode does not prove profitability.**
 > Зелёные тесты подтверждают целостность механики, а не прибыльность стратегии.
-> На этом этапе стратегии вообще нет: предложения в тестах и в `paper:simulate` —
-> это фиксированные заглушки для проверки конвейера.
+> С ЭТАПА 3 есть детерминированная стратегия (MA crossover) и operational kill
+> switch; без флага `--strategy` `paper:simulate` по-прежнему использует
+> фиксированную заглушку для проверки конвейера.
 
 ### Архитектура
 
@@ -138,6 +149,7 @@ src/state/
 └── state-store.mjs            персистентность, fail-closed recovery
 src/execution/
 ├── execution-adapter.mjs      порт + список запрещённых биржевых операций
+├── fill-model.mjs             подключаемая модель наполнения (полное/частичное)
 └── paper-execution-adapter.mjs  локальное исполнение, SL/TP, слиппедж
 src/session/
 └── paper-session.mjs          оркестратор: proposal -> risk -> executor -> persist
@@ -227,6 +239,7 @@ npm run paper:test            # самопроверка конвейера (о�
 npm run paper:state           # локальный счёт, позиции, хвост журнала
 npm run paper:simulate        # полный цикл на живых публичных данных
 npm run paper:simulate -- --side SHORT
+npm run paper:simulate -- --strategy deterministic-ma-crossover
 npm run paper:simulate -- --close
 npm run paper:reset -- --confirm-reset   # удаление счёта (нужен флаг!)
 ```
@@ -283,7 +296,7 @@ batch), история, preCheckOrder, DCP. Что закрыто наглухо
 ## Проверка
 
 ```bash
-npm test                  # весь набор (176 тестов)
+npm test                  # весь набор (282 теста)
 npm run test:paper        # только PAPER-слой (market/state/execution/session)
 npm run test:security     # изоляция архитектуры
 npm run paper:test        # самопроверка конвейера в форме команды (офлайн)

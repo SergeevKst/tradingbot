@@ -9,6 +9,16 @@
  *
  *   BACKTEST — offline historical simulation; no exchange contact at all.
  *   PAPER    — live data, simulated fills; no exchange write calls.
+ *   TESTNET  — authenticated orders, but ONLY ever against api-testnet.bybit.com
+ *              with dedicated testnet credentials. It is NOT live: real-money
+ *              orders remain forbidden. TESTNET is not an offline mode, so
+ *              `isOfflineMode` deliberately excludes it.
+ *   TESTNET_ONCE — the same authenticated testnet path as TESTNET, but with a
+ *              hard one-order invariant: at most ONE order submission is
+ *              attempted, after which the session shuts down gracefully. It
+ *              selects the SAME TESTNET adapter and reuses the SAME Risk Engine,
+ *              kill switch, journal and reconciliation engine; it is not a
+ *              parallel execution path and it is NOT live.
  *   LIVE     — real orders. NOT implemented in Stage 1 and additionally gated
  *              behind an explicit ALLOW_LIVE_TRADING opt-in.
  *
@@ -16,11 +26,13 @@
  */
 import { ConfigError } from './config-error.mjs';
 
-/** @typedef {'BACKTEST' | 'PAPER' | 'LIVE'} TradingModeName */
+/** @typedef {'BACKTEST' | 'PAPER' | 'TESTNET' | 'TESTNET_ONCE' | 'LIVE'} TradingModeName */
 
 export const TRADING_MODE = Object.freeze({
   BACKTEST: 'BACKTEST',
   PAPER: 'PAPER',
+  TESTNET: 'TESTNET',
+  TESTNET_ONCE: 'TESTNET_ONCE',
   LIVE: 'LIVE',
 });
 
@@ -73,8 +85,44 @@ export function isOfflineMode(mode) {
 /**
  * True only for the mode that may place real orders.
  *
+ * TESTNET is deliberately NOT live: testnet orders move no real money and the
+ * mode is pinned to the testnet host.
+ *
  * @param {TradingModeName} mode
  */
 export function isLiveMode(mode) {
   return mode === TRADING_MODE.LIVE;
+}
+
+/**
+ * True only for the authenticated testnet mode.
+ *
+ * @param {TradingModeName} mode
+ */
+export function isTestnetMode(mode) {
+  return mode === TRADING_MODE.TESTNET;
+}
+
+/**
+ * True only for the one-shot authenticated testnet mode.
+ *
+ * TESTNET_ONCE is a TESTNET mode: it must never be treated as LIVE, and it is
+ * never offline.
+ *
+ * @param {TradingModeName} mode
+ */
+export function isTestnetOnceMode(mode) {
+  return mode === TRADING_MODE.TESTNET_ONCE;
+}
+
+/**
+ * True for any mode that trades against the authenticated testnet host.
+ *
+ * Used by the configuration layer so TESTNET and TESTNET_ONCE share the same
+ * host/credential guards without duplicating them.
+ *
+ * @param {TradingModeName} mode
+ */
+export function isTestnetFamilyMode(mode) {
+  return mode === TRADING_MODE.TESTNET || mode === TRADING_MODE.TESTNET_ONCE;
 }

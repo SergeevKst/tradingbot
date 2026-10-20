@@ -49,6 +49,15 @@ const MAX_STRATEGY_ID_LENGTH = 64;
  */
 
 /**
+ * MASTER_SPEC §8 names the strategy→risk abstraction "TradeIntent". The
+ * implemented form of a TradeIntent is this `TradeProposal`: it deliberately
+ * omits `quantity`/`leverage` because position size is derived by the Risk
+ * Engine and must never travel in from a strategy or an AI model.
+ *
+ * @typedef {TradeProposal} TradeIntent
+ */
+
+/**
  * @typedef {object} ProposalIssue
  * @property {string} code one of REASON_CODE
  * @property {string} field offending field name

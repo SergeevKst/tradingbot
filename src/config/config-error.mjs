@@ -6,15 +6,21 @@
  * so the process fails loudly at startup instead of running with a partial or
  * silently-defaulted configuration.
  *
- * This module has no imports on purpose: it is the root of the config layer.
+ * It is the concrete configuration member of the §22 taxonomy: it extends
+ * `ConfigurationError`, so it gains a stable `code` and a non-retryable default
+ * while keeping the `field` / `value` shape every existing caller depends on.
+ *
+ * @module config/config-error
  */
-export class ConfigError extends Error {
+import { ConfigurationError } from '../errors/taxonomy.mjs';
+
+export class ConfigError extends ConfigurationError {
   /**
    * @param {string} message human-readable explanation
    * @param {{ field?: string, value?: unknown }} [details] offending field/value
    */
   constructor(message, details = {}) {
-    super(message);
+    super(message, { details: { field: details.field, value: details.value } });
     this.name = 'ConfigError';
     /** @type {string | undefined} */
     this.field = details.field;

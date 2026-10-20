@@ -122,10 +122,35 @@ test('ACCOUNT: the risk-engine projection exposes only what the engine needs', (
   const view = toRiskAccountView(base);
 
   assert.equal(view.equityUsd, 340);
+  assert.equal(view.peakEquityUsd, 340, 'the drawdown high-water mark is projected');
   assert.equal(view.tradesToday, 0);
   assert.deepEqual(view.openPositions, []);
   assert.deepEqual(view.openOrders, []);
   assert.equal('feesUsd' in view, false, 'the engine does not need fee bookkeeping');
+});
+
+test('ACCOUNT: the high-water mark rises with equity and never falls', () => {
+  const base = createPaperAccountState({ equityUsd: 340 });
+  assert.equal(base.peakEquityUsd, 340);
+
+  const up = recomputeAccount({ ...base, realizedPnlUsd: 60 });
+  assert.equal(up.equityUsd, 400);
+  assert.equal(up.peakEquityUsd, 400, 'a new high is recorded');
+
+  const down = recomputeAccount({ ...up, realizedPnlUsd: 0 });
+  assert.equal(down.equityUsd, 340);
+  assert.equal(down.peakEquityUsd, 400, 'the peak survives the drawdown');
+});
+
+test('ACCOUNT: the projection carries per-position notional for exposure caps', () => {
+  const base = createPaperAccountState({ equityUsd: 340 });
+  const position = validatePaperPosition({
+    symbol: 'BTCUSDT', side: 'LONG', quantity: 0.001, entryPrice: 86000, markPrice: 86000, leverage: 2,
+  });
+  const account = recomputeAccount({ ...base, positions: Object.freeze([position]) });
+
+  const view = toRiskAccountView(account);
+  assert.equal(view.openPositions[0].notionalUsd, 86, 'quantity * entryPrice');
 });
 
 // ---------------------------------------------------------------------------

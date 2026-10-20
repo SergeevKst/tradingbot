@@ -33,6 +33,7 @@ import { validateMarketState } from '../domain/market-state.mjs';
 import { approvedResult, rejectedResult } from '../domain/risk-result.mjs';
 import { actualRiskAtStop, calculatePositionSize, computePriceGeometry } from './position-sizing.mjs';
 import { silentLogger } from '../util/logger.mjs';
+import { assertKillSwitch, isKillSwitchEngaged } from './kill-switch.mjs';
 
 /**
  * @typedef {object} EvaluateTradeInput
@@ -40,6 +41,9 @@ import { silentLogger } from '../util/logger.mjs';
  * @property {unknown} account AccountState snapshot
  * @property {unknown} [market] MarketState snapshot (optional)
  * @property {import('../config/risk.mjs').RiskLimits} [riskConfig] overrides; defaults to the conservative profile
+ * @property {boolean} [killSwitchEngaged] runtime emergency-stop state. Fail closed:
+ *   any value other than `false`/omitted is treated as engaged, so a malformed flag
+ *   stops trading rather than silently permitting it.
  */
 
 /**
@@ -85,6 +89,12 @@ function evaluateTradeUnsafe(input) {
       REASON_CODE.INVALID_RISK_CONFIG,
       `Risk configuration is invalid: ${error instanceof Error ? error.message : String(error)}`,
     );
+  }
+
+  // Two layers feed one gate (§44): the static config flag and the operational
+  // runtime state. Either blocks; neither can release the other.
+  if (isKillSwitchEngaged(riskLimits) || isRuntimeKillSwitchEngaged(input.killSwitchEngaged)) {
+    return rejectedResult(REASON_CODE.KILL_SWITCH_ENGAGED, 'Kill switch engaged');
   }
 
   // --- proposal -------------------------------------------------------------
@@ -182,6 +192,21 @@ function evaluateTradeUnsafe(input) {
     );
   }
 
+  // --- maximum drawdown -----------------------------------------------------
+  // Measured peak-to-trough against the equity high-water mark, so a slow bleed
+  // across several days is caught even when no single day breaches the daily
+  // loss limit. `peakEquityUsd` is always >= equity after account validation, so
+  // the drawdown can never be negative.
+  const peakEquityUsd = account.peakEquityUsd ?? account.equityUsd;
+  const drawdownPct = peakEquityUsd > 0 ? ((peakEquityUsd - account.equityUsd) / peakEquityUsd) * 100 : 0;
+  if (drawdownPct >= riskLimits.maxDrawdownPct) {
+    return rejectedResult(
+      REASON_CODE.MAX_DRAWDOWN,
+      `Equity drawdown ${drawdownPct.toFixed(2)}% has reached the maximum ${riskLimits.maxDrawdownPct}% (peak ${peakEquityUsd.toFixed(2)} USD, now ${account.equityUsd.toFixed(2)} USD) — no new trades`,
+      context,
+    );
+  }
+
   // --- count-based limits ---------------------------------------------------
   if (account.openPositions.length >= riskLimits.maxOpenPositions) {
     return rejectedResult(
@@ -232,6 +257,35 @@ function evaluateTradeUnsafe(input) {
     }
   }
 
+  // --- exposure headroom ----------------------------------------------------
+  // Existing exposure consumes headroom; the proposed position is sized to what
+  // remains so total/symbol notional never breaches its cap. A symbol with no
+  // headroom is refused outright (nothing to size against).
+  const existingSymbolNotionalUsd = account.openPositions
+    .filter((position) => position.symbol === proposal.symbol)
+    .reduce((sum, position) => sum + notionalOf(position), 0);
+  const existingTotalNotionalUsd = account.openPositions.reduce((sum, position) => sum + notionalOf(position), 0);
+  const symbolExposureCapUsd = (account.equityUsd * riskLimits.maxSymbolExposurePct) / 100;
+  const totalExposureCapUsd = (account.equityUsd * riskLimits.maxTotalExposurePct) / 100;
+  const symbolHeadroomUsd = symbolExposureCapUsd - existingSymbolNotionalUsd;
+  const totalHeadroomUsd = totalExposureCapUsd - existingTotalNotionalUsd;
+
+  if (symbolHeadroomUsd <= 0) {
+    return rejectedResult(
+      REASON_CODE.SYMBOL_EXPOSURE_LIMIT,
+      `Open exposure on ${proposal.symbol} (${existingSymbolNotionalUsd.toFixed(2)} USD) has reached the per-symbol cap ${symbolExposureCapUsd.toFixed(2)} USD`,
+      context,
+    );
+  }
+  if (totalHeadroomUsd <= 0) {
+    return rejectedResult(
+      REASON_CODE.TOTAL_EXPOSURE_LIMIT,
+      `Total open exposure (${existingTotalNotionalUsd.toFixed(2)} USD) has reached the account cap ${totalExposureCapUsd.toFixed(2)} USD`,
+      context,
+    );
+  }
+  const exposureHeadroomUsd = Math.min(symbolHeadroomUsd, totalHeadroomUsd);
+
   // --- sizing ---------------------------------------------------------------
   const sizing = calculatePositionSize({
     equityUsd: account.equityUsd,
@@ -240,6 +294,7 @@ function evaluateTradeUnsafe(input) {
     entryPrice: proposal.entryPrice,
     maxLeverage: riskLimits.maxLeverage,
     availableBalanceUsd: account.availableBalanceUsd,
+    maxNotionalUsd: exposureHeadroomUsd,
   });
 
   if (sizing.positionNotionalUsd <= 0) {
@@ -268,10 +323,14 @@ function evaluateTradeUnsafe(input) {
   // A position shrunk by a cap (balance/leverage) can end up too small to be a
   // meaningful trade. Refuse it rather than approving dust.
   if (sizing.positionNotionalUsd < riskLimits.minPositionNotionalUsd) {
+    const cap = sizing.exposureCapped
+      ? ' (position was capped by the exposure limit)'
+      : sizing.balanceCapped
+        ? ' (position was capped by available balance)'
+        : '';
     return rejectedResult(
       REASON_CODE.POSITION_NOTIONAL_TOO_SMALL,
-      `Position notional ${sizing.positionNotionalUsd.toFixed(4)} USD is below the configured minimum ${riskLimits.minPositionNotionalUsd} USD` +
-        (sizing.balanceCapped ? ' (position was capped by available balance)' : ''),
+      `Position notional ${sizing.positionNotionalUsd.toFixed(4)} USD is below the configured minimum ${riskLimits.minPositionNotionalUsd} USD${cap}`,
       { ...context, riskAmountUsd, riskReward: geometry.riskReward },
     );
   }
@@ -333,6 +392,39 @@ function evaluateTradeUnsafe(input) {
 }
 
 /**
+ * Fail-closed reading of the runtime kill-switch flag.
+ *
+ * `undefined`/`false` mean "not engaged"; every other value — including a
+ * malformed truthy string or a missing control surfaced as `null` — engages.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function isRuntimeKillSwitchEngaged(value) {
+  return value !== undefined && value !== false;
+}
+
+/**
+ * Notional of an open position, preferring the explicit field and falling back
+ * to quantity * entry price. A position with neither contributes zero rather
+ * than `NaN` (which would poison every downstream sum).
+ *
+ * @param {{ notionalUsd?: number, quantity?: number, entryPrice?: number }} position
+ * @returns {number}
+ */
+function notionalOf(position) {
+  if (Number.isFinite(position?.notionalUsd) && /** @type {number} */ (position.notionalUsd) >= 0) {
+    return /** @type {number} */ (position.notionalUsd);
+  }
+  const quantity = position?.quantity;
+  const entryPrice = position?.entryPrice;
+  if (Number.isFinite(quantity) && Number.isFinite(entryPrice)) {
+    return Math.max(0, /** @type {number} */ (quantity) * /** @type {number} */ (entryPrice));
+  }
+  return 0;
+}
+
+/**
  * Validate an override risk configuration and return it frozen.
  *
  * @param {import('../config/risk.mjs').RiskLimits} limits
@@ -348,19 +440,31 @@ export function normalizeRiskLimits(limits) {
 }
 
 /**
- * Risk Engine bound to a configuration, with structured logging.
+ * Risk Engine bound to a configuration, an optional operational kill switch,
+ * structured logging, and an optional decision sink.
  *
  * The pure `evaluateTrade` remains the primary interface; this wrapper adds
- * optional logging without adding any capability the pure function lacks.
+ * only orchestration — it can narrow (via the runtime kill switch) but never
+ * widen the pure function's decision.
  *
- * @param {{ riskConfig?: import('../config/risk.mjs').RiskLimits, logger?: { info: Function, warn: Function, error: Function } }} [options]
+ * @param {{
+ *   riskConfig?: import('../config/risk.mjs').RiskLimits,
+ *   killSwitch?: ReturnType<import('./kill-switch.mjs').createKillSwitch>,
+ *   logger?: { info: Function, warn: Function, error: Function, debug?: Function },
+ *   onDecision?: (result: import('../domain/risk-result.mjs').RiskResult) => void,
+ * }} [options]
  */
 export function createRiskEngine(options = {}) {
   const riskConfig = options.riskConfig ? normalizeRiskLimits(options.riskConfig) : DEFAULT_RISK_LIMITS;
   const logger = options.logger ?? silentLogger;
+  // An injected control is validated before the engine can evaluate anything;
+  // a broken emergency stop is refused at construction, not on first trade.
+  const killSwitch = options.killSwitch === undefined ? null : assertKillSwitch(options.killSwitch);
+  const onDecision = typeof options.onDecision === 'function' ? options.onDecision : null;
 
   return Object.freeze({
     riskConfig,
+    killSwitch,
 
     /**
      * Evaluate a proposal and log the decision (never the secrets, never the
@@ -370,7 +474,21 @@ export function createRiskEngine(options = {}) {
      * @returns {import('../domain/risk-result.mjs').RiskResult}
      */
     evaluate({ proposal, account, market }) {
-      const result = evaluateTrade({ proposal, account, market, riskConfig });
+      const killSwitchEngaged = killSwitch === null ? undefined : killSwitch.isEngaged();
+      const result = evaluateTrade({ proposal, account, market, riskConfig, killSwitchEngaged });
+
+      if (onDecision !== null) {
+        try {
+          onDecision(result);
+        } catch (error) {
+          // An audit sink must never be able to turn a rejection into a crash
+          // (or, worse, suppress a decision). Fail closed: log and continue.
+          logger.error('risk decision sink threw', {
+            error: error instanceof Error ? error.message : String(error),
+            reason: result.reasonCode,
+          });
+        }
+      }
 
       if (result.approved) {
         logger.info('proposal evaluated', {
@@ -395,6 +513,28 @@ export function createRiskEngine(options = {}) {
       return result;
     },
   });
+}
+
+/**
+ * The Risk Engine contract every caller (session, backtest, tests) depends on.
+ * `evaluateTrade`/`createRiskEngine` both satisfy it.
+ *
+ * @typedef {object} RiskEngine
+ * @property {(input: { proposal: unknown, account: unknown, market?: unknown }) => import('../domain/risk-result.mjs').RiskResult} evaluate
+ */
+
+/**
+ * Assert an object satisfies the RiskEngine contract.
+ *
+ * @param {unknown} engine
+ * @returns {RiskEngine}
+ * @throws {ConfigError}
+ */
+export function assertRiskEngine(engine) {
+  if (engine === null || typeof engine !== 'object' || typeof /** @type {any} */ (engine).evaluate !== 'function') {
+    throw new ConfigError('RiskEngine must expose evaluate({ proposal, account, market })');
+  }
+  return /** @type {RiskEngine} */ (engine);
 }
 
 /**

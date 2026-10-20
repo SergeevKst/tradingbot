@@ -18,7 +18,7 @@
  */
 import { ConfigError } from './config-error.mjs';
 import { isAbsent, parseBoolean, parseEnum } from './parse.mjs';
-import { TRADING_MODE, isOfflineMode, resolveTradingMode } from './trading-mode.mjs';
+import { TRADING_MODE, isOfflineMode, isTestnetFamilyMode, resolveTradingMode } from './trading-mode.mjs';
 import { loadRiskLimits } from './risk.mjs';
 import { loadPaperConfig } from './paper.mjs';
 
@@ -91,6 +91,26 @@ export function loadConfig(env = process.env) {
     throw new ConfigError(
       'TRADING_MODE=LIVE is not supported: no live execution path exists. Use PAPER or BACKTEST.',
       { field: 'TRADING_MODE', value: tradingMode },
+    );
+  }
+
+  // TESTNET_ONCE is a testnet mode, so it can never be combined with the LIVE
+  // opt-in: a configuration that claims both is contradictory and is refused
+  // rather than resolved in either direction.
+  if (tradingMode === TRADING_MODE.TESTNET_ONCE && liveTradingAllowed) {
+    throw new ConfigError(
+      'TRADING_MODE=TESTNET_ONCE is a testnet mode and cannot be combined with ALLOW_LIVE_TRADING=true. Refusing an ambiguous live/testnet configuration.',
+      { field: 'ALLOW_LIVE_TRADING', value: env.ALLOW_LIVE_TRADING },
+    );
+  }
+
+  // Fail closed on an ambiguous TESTNET/TESTNET_ONCE configuration. Both are
+  // pinned to the testnet host; a run that asked for either while the host
+  // resolved to mainnet must abort rather than silently fall back to production.
+  if (isTestnetFamilyMode(tradingMode) && !testnet) {
+    throw new ConfigError(
+      `TRADING_MODE=${tradingMode} requires BYBIT_TESTNET=true so the exchange host is api-testnet.bybit.com. Refusing to fall back to production.`,
+      { field: 'BYBIT_TESTNET', value: env.BYBIT_TESTNET },
     );
   }
 

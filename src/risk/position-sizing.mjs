@@ -82,16 +82,18 @@ export function computePriceGeometry(input) {
  * @property {number} entryPrice
  * @property {number} maxLeverage leverage cap
  * @property {number} availableBalanceUsd free margin
+ * @property {number} [maxNotionalUsd] exposure headroom cap (symbol/total); omit for no exposure cap
  */
 
 /**
  * @typedef {object} SizingOutput
  * @property {number} riskAmountUsd
- * @property {number} positionNotionalUsd notional after applying the leverage cap
+ * @property {number} positionNotionalUsd notional after applying every cap
  * @property {number} rawPositionNotionalUsd notional before the leverage cap
  * @property {number} estimatedQuantity unrounded base-unit size
  * @property {number} effectiveLeverage notional / equity
  * @property {boolean} leverageCapped true when the leverage cap reduced the size
+ * @property {boolean} exposureCapped true when the exposure headroom reduced the size
  * @property {boolean} balanceCapped true when available balance reduced the size
  */
 
@@ -103,9 +105,9 @@ export function computePriceGeometry(input) {
  *   riskAmountUsd         = equity * riskPerTradePct / 100
  *   positionNotionalUsd   = riskAmountUsd / stopLossDistanceFraction
  *
- * The result is then reduced by, in order: the leverage cap, and the available
- * balance. Both reductions are reported so the caller can see when a limit
- * actually bound.
+ * The result is then reduced by, in order: the leverage cap, the exposure
+ * headroom, and the available balance. Every reduction is reported so the
+ * caller can see when a limit actually bound.
  *
  * Note that `confidence` is deliberately absent from this signature: position
  * size must never be a function of a model's self-reported certainty.
@@ -115,6 +117,7 @@ export function computePriceGeometry(input) {
  */
 export function calculatePositionSize(input) {
   const { equityUsd, riskPerTradePct, stopLossDistanceFraction, entryPrice, maxLeverage, availableBalanceUsd } = input;
+  const maxNotionalUsd = input.maxNotionalUsd;
 
   const riskAmountUsd = (equityUsd * riskPerTradePct) / 100;
 
@@ -129,6 +132,12 @@ export function calculatePositionSize(input) {
   if (positionNotionalUsd > maxNotionalByLeverage) {
     positionNotionalUsd = maxNotionalByLeverage;
     leverageCapped = true;
+  }
+
+  let exposureCapped = false;
+  if (Number.isFinite(maxNotionalUsd) && positionNotionalUsd > maxNotionalUsd) {
+    positionNotionalUsd = Math.max(0, /** @type {number} */ (maxNotionalUsd));
+    exposureCapped = true;
   }
 
   let balanceCapped = false;
@@ -149,6 +158,7 @@ export function calculatePositionSize(input) {
     estimatedQuantity,
     effectiveLeverage,
     leverageCapped,
+    exposureCapped,
     balanceCapped,
   };
 }

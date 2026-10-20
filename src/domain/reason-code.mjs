@@ -10,6 +10,8 @@
 
 export const REASON_CODE = Object.freeze({
   APPROVED: 'APPROVED',
+  /** A strategy evaluated its context and deliberately emitted no proposal. */
+  NO_SIGNAL: 'NO_SIGNAL',
 
   // --- proposal shape / validity -------------------------------------------
   INVALID_SYMBOL: 'INVALID_SYMBOL',
@@ -36,8 +38,11 @@ export const REASON_CODE = Object.freeze({
   RISK_LIMIT_EXCEEDED: 'RISK_LIMIT_EXCEEDED',
   RISK_AMOUNT_TOO_SMALL: 'RISK_AMOUNT_TOO_SMALL',
   DAILY_LOSS_LIMIT: 'DAILY_LOSS_LIMIT',
+  MAX_DRAWDOWN: 'MAX_DRAWDOWN',
   MAX_OPEN_POSITIONS: 'MAX_OPEN_POSITIONS',
   MAX_TRADES_PER_DAY: 'MAX_TRADES_PER_DAY',
+  SYMBOL_EXPOSURE_LIMIT: 'SYMBOL_EXPOSURE_LIMIT',
+  TOTAL_EXPOSURE_LIMIT: 'TOTAL_EXPOSURE_LIMIT',
   LEVERAGE_LIMIT: 'LEVERAGE_LIMIT',
   INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
   POSITION_NOTIONAL_TOO_SMALL: 'POSITION_NOTIONAL_TOO_SMALL',
@@ -51,6 +56,7 @@ export const REASON_CODE = Object.freeze({
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   UNSUPPORTED_MODE: 'UNSUPPORTED_MODE',
   LIVE_TRADING_DISABLED: 'LIVE_TRADING_DISABLED',
+  KILL_SWITCH_ENGAGED: 'KILL_SWITCH_ENGAGED',
 
   // --- execution (Stage 2 paper layer) --------------------------------------
   /** Bid or ask is missing, so no honest fill price can be produced. */
@@ -71,6 +77,44 @@ export const REASON_CODE = Object.freeze({
   INVALID_PROTECTION_LEVEL: 'INVALID_PROTECTION_LEVEL',
   /** The adapter is not permitted to place real orders. */
   REAL_ORDERS_NOT_PERMITTED: 'REAL_ORDERS_NOT_PERMITTED',
+
+  // --- one-shot TESTNET_ONCE ------------------------------------------------
+  /** The single permitted submission was already attempted; a second is refused. */
+  ONE_SHOT_EXHAUSTED: 'ONE_SHOT_EXHAUSTED',
+  /** The one-shot session has already completed and shut down. */
+  ONE_SHOT_SHUTDOWN: 'ONE_SHOT_SHUTDOWN',
+
+  // --- live safety gate (MASTER_SPEC Phase 10, §46) -------------------------
+  /** At least one §46 checklist condition or runtime safety check failed. */
+  LIVE_GATE_REFUSED: 'LIVE_GATE_REFUSED',
+  /** LIVE_ENABLED is not explicitly true, so live activation is refused. */
+  LIVE_FLAG_NOT_ENABLED: 'LIVE_FLAG_NOT_ENABLED',
+  /** One or more §46 checklist items are missing or not attested true. */
+  LIVE_CHECKLIST_INCOMPLETE: 'LIVE_CHECKLIST_INCOMPLETE',
+  /** Live and testnet credentials are not separated. */
+  LIVE_CREDENTIAL_SEPARATION_FAILED: 'LIVE_CREDENTIAL_SEPARATION_FAILED',
+  /** The risk limit set is invalid for a live run. */
+  LIVE_RISK_CONFIG_INVALID: 'LIVE_RISK_CONFIG_INVALID',
+  /** The emergency stop control is missing or malformed. */
+  LIVE_KILL_SWITCH_INVALID: 'LIVE_KILL_SWITCH_INVALID',
+  /** The emergency stop is engaged, so live activation/entry is refused. */
+  LIVE_KILL_SWITCH_ENGAGED: 'LIVE_KILL_SWITCH_ENGAGED',
+  /** No append-only audit journal is available to record live events. */
+  LIVE_AUDIT_UNAVAILABLE: 'LIVE_AUDIT_UNAVAILABLE',
+
+  // --- reconciliation / recovery (MASTER_SPEC Phase 9) ----------------------
+  /** The same idempotency key was already submitted; the retry is refused. */
+  DUPLICATE_ORDER: 'DUPLICATE_ORDER',
+  /** A network/API failure left it unknown whether the order exists. */
+  ORDER_STATE_UNKNOWN: 'ORDER_STATE_UNKNOWN',
+  /** The exchange has no record of an order the local state believes exists. */
+  ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
+  /** Local and exchange state disagree in a way that must stop trading. */
+  RECONCILIATION_MISMATCH: 'RECONCILIATION_MISMATCH',
+  /** Startup reconciliation did not complete; trading stays disabled (§15). */
+  RECONCILIATION_FAILED: 'RECONCILIATION_FAILED',
+  /** A bounded reconciliation query could not determine the order state. */
+  RECONCILIATION_UNDETERMINED: 'RECONCILIATION_UNDETERMINED',
 });
 
 /** @type {readonly string[]} */

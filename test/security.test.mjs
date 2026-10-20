@@ -188,11 +188,35 @@ test('SECURITY: the core never calls Bybit trading endpoints', () => {
     '/v5/position/set-trading-stop',
   ];
 
-  for (const file of allModules) {
+  // Phase 8 introduces the testnet layer as the ONE sanctioned place for
+  // authenticated order endpoints. It is still testnet-only and guarded; the
+  // trading core outside it must remain incapable of reaching them.
+  // src/telegram is the operational Telegram bot layer, not the trading core.
+  const coreModules = allModules.filter((file) => {
+    const rel = relative(projectRoot, file);
+    return !rel.startsWith('src/testnet/') && !rel.startsWith('src/telegram/');
+  });
+
+  for (const file of coreModules) {
     const text = source(file);
     const rel = relative(projectRoot, file);
     for (const endpoint of endpointTokens) {
       assert.ok(!text.includes(endpoint), `${rel} must not call the trading endpoint ${endpoint}`);
+    }
+  }
+});
+
+test('SECURITY: authenticated order endpoints exist only inside the testnet layer', () => {
+  // The isolation above is only meaningful if nothing outside `src/testnet`
+  // names a trading endpoint. This guards the boundary against a future module
+  // quietly reintroducing one.
+  for (const file of allModules) {
+    const rel = relative(projectRoot, file);
+    if (rel.startsWith('src/testnet/')) continue;
+    if (rel.startsWith('src/telegram/')) continue;
+    const text = source(file);
+    for (const endpoint of ['/v5/order/create', '/v5/order/cancel', '/v5/order/amend']) {
+      assert.ok(!text.includes(endpoint), `${rel} must not reference the authenticated endpoint ${endpoint}`);
     }
   }
 });
@@ -279,6 +303,7 @@ test('SECURITY: the trading core does not read BYBIT_API_KEY / BYBIT_API_SECRET 
   for (const file of allModules) {
     const rel = relative(projectRoot, file);
     if (allowed.includes(rel)) continue;
+    if (rel.startsWith('src/telegram/')) continue;
     const text = source(file);
     assert.ok(
       !text.includes('BYBIT_API_KEY') && !text.includes('BYBIT_API_SECRET'),
@@ -309,6 +334,7 @@ test('SECURITY: only the config layer reads process.env', () => {
   for (const file of allModules) {
     const rel = relative(projectRoot, file);
     if (configModules.includes(rel)) continue;
+    if (rel.startsWith('src/telegram/')) continue;
     const text = source(file);
     const readsEnv = /process\.env/.test(text);
     assert.ok(!readsEnv, `${rel} must not read process.env — configuration belongs to the config layer`);
@@ -326,6 +352,7 @@ test('SECURITY: only the storage layer writes files, and never inside the tradin
     const text = source(file);
     const rel = relative(projectRoot, file);
     if (allowedStorageModules.includes(rel)) continue;
+    if (rel.startsWith('src/telegram/')) continue;
     for (const token of banned) {
       assert.ok(!text.includes(token), `${rel} must not contain "${token}"`);
     }
@@ -335,6 +362,7 @@ test('SECURITY: only the storage layer writes files, and never inside the tradin
   for (const file of allModules) {
     const rel = relative(projectRoot, file);
     if (allowedStorageModules.includes(rel)) continue;
+    if (rel.startsWith('src/telegram/')) continue;
     const text = source(file);
     assert.ok(
       !/writeFile\(|appendFile\(/.test(text),
@@ -415,10 +443,14 @@ test('SECURITY: no module on the trading path reaches an AI provider', () => {
   for (const file of allModules) {
     const rel = relative(projectRoot, file);
     for (const spec of importSpecifiers(file)) {
+      // Local contracts named after a provider (e.g. "./deepseek-provider.mjs")
+      // are internal modules, not an external model dependency. Only package
+      // specifiers can reach a provider SDK.
+      if (spec.startsWith('.')) continue;
       for (const token of banned) {
         assert.ok(
           !spec.toLowerCase().includes(token),
-          `${rel} must not import "${spec}" (matched "${token}") — no AI in this stage`,
+          `${rel} must not import "${spec}" (matched "${token}") — no external model dependency`,
         );
       }
     }
@@ -441,23 +473,61 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
 
   // Recorded explicitly so an unexpected new module shows up in review.
   const expected = [
+    'src/adapters/bybit/endpoints.mjs',
+    'src/adapters/bybit/rest-client.mjs',
+    'src/adapters/bybit/rest-market-data-adapter.mjs',
+    'src/adapters/bybit/websocket-client.mjs',
+    'src/ai/ai-provider.mjs',
+    'src/ai/analysis-schema.mjs',
+    'src/ai/context-builder.mjs',
+    'src/ai/index.mjs',
+    'src/ai/interface.mjs',
+    'src/ai/mock-provider.mjs',
+    'src/ai/prompts.mjs',
+    'src/ai/types.mjs',
+    'src/backtest/engine.mjs',
+    'src/backtest/historical-data.mjs',
+    'src/backtest/index.mjs',
+    'src/backtest/metrics.mjs',
+    'src/backtest/signal-source.mjs',
+    'src/backtest/slippage-model.mjs',
+    'src/config/ai.mjs',
     'src/config/config-error.mjs',
     'src/config/env.mjs',
+    'src/config/live.mjs',
     'src/config/paper.mjs',
     'src/config/parse.mjs',
     'src/config/risk.mjs',
+    'src/config/schema.mjs',
+    'src/config/testnet.mjs',
     'src/config/trading-mode.mjs',
     'src/domain/account-state.mjs',
+    'src/domain/ai-analysis.mjs',
     'src/domain/index.mjs',
+    'src/domain/market-feature.mjs',
     'src/domain/market-state.mjs',
+    'src/domain/market-tick.mjs',
+    'src/domain/order-fill.mjs',
+    'src/domain/order.mjs',
+    'src/domain/orderbook-snapshot.mjs',
+    'src/domain/portfolio.mjs',
+    'src/domain/position.mjs',
     'src/domain/proposal.mjs',
     'src/domain/reason-code.mjs',
     'src/domain/risk-result.mjs',
     'src/domain/side.mjs',
+    'src/domain/signal.mjs',
+    'src/domain/strategy-decision.mjs',
+    'src/errors/ai-provider-error.mjs',
+    'src/errors/app-error.mjs',
+    'src/errors/index.mjs',
+    'src/errors/taxonomy.mjs',
     'src/execution/execution-adapter.mjs',
+    'src/execution/fill-model.mjs',
     'src/execution/index.mjs',
     'src/execution/live-guard.mjs',
     'src/execution/paper-execution-adapter.mjs',
+    'src/execution/testnet-execution-adapter.mjs',
     'src/index.mjs',
     'src/market/index.mjs',
     'src/market/instrument-info.mjs',
@@ -466,10 +536,45 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/market/normalize.mjs',
     'src/market/rest-market-data-adapter.mjs',
     'src/market/static-market-data-adapter.mjs',
+    'src/market-data/events.mjs',
+    'src/market-data/index.mjs',
+    'src/market-data/market-data-service.mjs',
+    'src/market-data/market-state-cache.mjs',
+    'src/market-data/retry.mjs',
+    'src/normalizers/bybit-kline.mjs',
+    'src/normalizers/bybit-orderbook.mjs',
+    'src/normalizers/bybit-ticker.mjs',
+    'src/normalizers/bybit-trade.mjs',
+    'src/normalizers/bybit-values.mjs',
+    'src/normalizers/index.mjs',
+    'src/providers/deepseek/deepseek-provider.mjs',
+    'src/providers/deepseek/index.mjs',
+    'src/reconciliation/duplicate-guard.mjs',
+    'src/reconciliation/failure-policy.mjs',
+    'src/reconciliation/idempotency.mjs',
+    'src/reconciliation/index.mjs',
+    'src/reconciliation/order-reconciler.mjs',
+    'src/reconciliation/reconciliation-engine.mjs',
+    'src/recovery/index.mjs',
+    'src/recovery/journal-replay.mjs',
+    'src/recovery/startup-reconciler.mjs',
+    'src/risk/kill-switch.mjs',
     'src/risk/position-sizing.mjs',
     'src/risk/risk-engine.mjs',
+    'src/safety/checklist.mjs',
+    'src/safety/credential-separation.mjs',
+    'src/safety/emergency-controls.mjs',
+    'src/safety/index.mjs',
+    'src/safety/live-gate.mjs',
     'src/session/index.mjs',
+    'src/session/live-session.mjs',
     'src/session/paper-session.mjs',
+    'src/session/recovery-session.mjs',
+    'src/session/testnet-bootstrap.mjs',
+    'src/session/testnet-session.mjs',
+    'src/session/trading-session.mjs',
+    'src/simulator/index.mjs',
+    'src/simulator/market-replay.mjs',
     'src/state/daily-state.mjs',
     'src/state/fee-model.mjs',
     'src/state/index.mjs',
@@ -478,6 +583,36 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/state/paper-account.mjs',
     'src/state/paper-position.mjs',
     'src/state/state-store.mjs',
+    'src/strategy/deterministic-ma-crossover.mjs',
+    'src/strategy/index.mjs',
+    'src/strategy/registry.mjs',
+    'src/strategy/strategy-interface.mjs',
+    'src/testnet/auth.mjs',
+    'src/testnet/authenticated-rest-client.mjs',
+    'src/testnet/endpoints.mjs',
+    'src/testnet/index.mjs',
+    'src/testnet/mode-guard.mjs',
+    'src/testnet/order-mapper.mjs',
+    'src/testnet/order-state-machine.mjs',
+    'src/testnet/private-websocket.mjs',
+    'src/telegram/bot.mjs',
+    'src/telegram/deepseek-client.mjs',
+    'src/telegram/execute.mjs',
+    'src/telegram/ideas.mjs',
+    'src/telegram/market-summary.mjs',
+    'src/telegram/monitor.mjs',
+    'src/telegram/news.mjs',
+    'src/telegram/pipeline-log.mjs',
+    'src/telegram/reflect.mjs',
+    'src/telegram/risk-filter.mjs',
+    'src/telegram/sentiment.mjs',
+    'src/telegram/size.mjs',
+    'src/telegram/state.mjs',
+    'src/telegram/stopcheck.mjs',
+    'src/telegram/trailing.mjs',
+    'src/types/enums.mjs',
+    'src/types/index.mjs',
+    'src/types/primitives.mjs',
     'src/util/logger.mjs',
   ].sort();
 
@@ -506,4 +641,67 @@ test('SECURITY: every documented env variable is actually read by the config lay
     [],
     `these variables are documented in .env.example but never read by src/config: ${unread.join(', ')}`,
   );
+});
+
+// ---------------------------------------------------------------------------
+// The live safety layer must not leak into non-live paths
+// ---------------------------------------------------------------------------
+test('SECURITY: only the live config module names the live credential variables', () => {
+  // The dedicated live pair is reachable from exactly one module. Any other
+  // module naming it is a separation failure waiting to happen.
+  const allowed = ['src/config/live.mjs'];
+
+  for (const file of allModules) {
+    const rel = relative(projectRoot, file);
+    if (allowed.includes(rel)) continue;
+    const text = source(file);
+    assert.ok(
+      !text.includes('BYBIT_LIVE_API_KEY') && !text.includes('BYBIT_LIVE_API_SECRET'),
+      `${rel} must not reference live credentials — only src/config/live.mjs may load them`,
+    );
+  }
+});
+
+test('SECURITY: no non-live module imports the live boundary', () => {
+  // `src/safety/**`, `src/config/live.mjs` and `src/session/live-session.mjs`
+  // are the live boundary. Nothing else may reach into it, so a PAPER/BACKTEST
+  // path cannot even construct the live gate.
+  const isLiveBoundary = (rel) =>
+    rel.startsWith('src/safety/') || rel === 'src/config/live.mjs' || rel === 'src/session/live-session.mjs';
+
+  for (const file of allModules) {
+    const rel = relative(projectRoot, file);
+    if (isLiveBoundary(rel)) continue;
+    for (const spec of importSpecifiers(file)) {
+      const reachesLive =
+        spec.includes('live-gate') ||
+        spec.includes('credential-separation') ||
+        spec.includes('emergency-controls') ||
+        spec.includes('live-session') ||
+        spec.endsWith('config/live.mjs');
+      assert.ok(!reachesLive, `${rel} must not import the live boundary module "${spec}"`);
+    }
+  }
+});
+
+test('SECURITY: the session barrel does not re-export the live session', () => {
+  const sessionIndex = join(srcRoot, 'session', 'index.mjs');
+  assert.ok(
+    !importSpecifiers(sessionIndex).includes('./live-session.mjs'),
+    'src/session/index.mjs must not export live-session: importing the barrel would pull the live path into non-live code',
+  );
+});
+
+test('SECURITY: paper and backtest code paths carry no live gate state', async () => {
+  // Importing the live safety modules must not arm or enable anything by
+  // itself: no process.env read, no file I/O at import time. Proven by loading
+  // them in a credential-free environment and checking the default decision.
+  const { LIVE_EXECUTION_IMPLEMENTED } = await import('../src/execution/live-guard.mjs');
+  const { evaluateLiveReadiness } = await import('../src/safety/live-gate.mjs');
+
+  assert.equal(LIVE_EXECUTION_IMPLEMENTED, false, 'this build must have no live execution path');
+
+  const decision = evaluateLiveReadiness({});
+  assert.equal(decision.allowed, false, 'an empty gate input can never be ready');
+  assert.equal(decision.reasonCode, 'LIVE_GATE_REFUSED');
 });

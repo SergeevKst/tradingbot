@@ -105,8 +105,10 @@ export function shortProposal(overrides = {}) {
  * @param {{
  *   riskConfig?: object,
  *   fees?: import('../src/state/fee-model.mjs').FeeModel,
+ *   fillModel?: import('../src/execution/fill-model.mjs').FillModel,
  *   initialEquityUsd?: number,
  *   now?: () => string,
+ *   strategyRegistry?: { get: Function, list: Function },
  * }} [options]
  */
 export async function makeSession(options = {}) {
@@ -121,9 +123,11 @@ export async function makeSession(options = {}) {
     createPaperSession({
       riskConfig: options.riskConfig ?? DEFAULT_RISK_LIMITS,
       feeModel: options.fees ?? feeModel(),
+      ...(options.fillModel ? { fillModel: options.fillModel } : {}),
       paths: { ...paths, ...overrides },
       logger: quietLogger,
       ...(options.now ? { now: options.now } : {}),
+      ...(options.strategyRegistry ? { strategyRegistry: options.strategyRegistry } : {}),
     });
 
   const session = await build();

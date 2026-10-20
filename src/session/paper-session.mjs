@@ -20,19 +20,33 @@
 import { ConfigError } from '../config/config-error.mjs';
 import { REASON_CODE } from '../domain/reason-code.mjs';
 import { normalizeSymbol } from '../domain/proposal.mjs';
+import { createStrategyDecision } from '../domain/strategy-decision.mjs';
+import { createTradingSignal } from '../domain/signal.mjs';
+import { SIGNAL_ACTION } from '../types/enums.mjs';
 import { evaluateTrade } from '../risk/risk-engine.mjs';
+import { assertKillSwitch, createKillSwitch } from '../risk/kill-switch.mjs';
 import { toRiskInstrumentView } from '../market/instrument-info.mjs';
-import { toRiskAccountView, validatePaperAccountState, createPaperAccountState } from '../state/paper-account.mjs';
+import {
+  toRiskAccountView,
+  toPortfolioSnapshot,
+  toPnLSnapshot,
+  validatePaperAccountState,
+  createPaperAccountState,
+} from '../state/paper-account.mjs';
 import { createDailyState, rollDailyStateIfNeeded, recordDailyActivity, validateDailyState } from '../state/daily-state.mjs';
 import { createJournal, createJournalEvent, JOURNAL_EVENT } from '../state/journal.mjs';
 import { savePaperState, loadPaperState, resetPaperState } from '../state/state-store.mjs';
 import { createPaperExecutionAdapter } from '../execution/paper-execution-adapter.mjs';
+import { createDefaultStrategyRegistry, buildMarketContext } from '../strategy/index.mjs';
 
 /**
  * @typedef {object} PaperSessionOptions
  * @property {import('../config/risk.mjs').RiskLimits} riskConfig
  * @property {import('../state/fee-model.mjs').FeeModel} feeModel
+ * @property {import('../execution/fill-model.mjs').FillModel} [fillModel] how much of an order fills; defaults to a full fill
  * @property {{ stateFile: string, journalFile: string, initialEquityUsd: number, persist?: boolean }} paths
+ * @property {{ get: Function, list: Function }} [strategyRegistry] strategies to run; defaults to the built-in registry
+ * @property {ReturnType<import('../risk/kill-switch.mjs').createKillSwitch>} [killSwitch] runtime emergency stop; defaults to a disengaged one
  * @property {() => string} [now] injected clock returning an ISO timestamp
  * @property {object} [logger]
  * @property {object} [fs] injectable filesystem, for tests
@@ -54,6 +68,10 @@ export async function createPaperSession(options) {
   const logger = options.logger ?? { info() {}, warn() {}, error() {}, debug() {} };
   const persist = options.paths.persist !== false;
   const fs = options.fs;
+  const strategyRegistry = options.strategyRegistry ?? createDefaultStrategyRegistry();
+  // The operational emergency stop always exists; by default it is released.
+  // An injected control is validated before the session can accept a trade.
+  const killSwitch = assertKillSwitch(options.killSwitch ?? createKillSwitch({ now }));
 
   const journal = createJournal({ filePath: options.paths.journalFile, fs });
 
@@ -89,6 +107,23 @@ export async function createPaperSession(options) {
     await journalQueue;
   }
 
+  /**
+   * Record an engage/release of the runtime emergency stop (§44).
+   *
+   * @param {string} eventType one of JOURNAL_EVENT.KILL_SWITCH_*
+   * @param {{ engaged: boolean, reason: string | null, engagedAt: string | null }} state
+   */
+  function recordKillSwitch(eventType, state) {
+    appendToJournal(
+      createJournalEvent({
+        eventType,
+        timestamp: now(),
+        reason: state.reason,
+        metadata: { engaged: state.engaged, engagedAt: state.engagedAt },
+      }),
+    );
+  }
+
   let account;
   let daily;
   let restored = false;
@@ -111,6 +146,7 @@ export async function createPaperSession(options) {
   const adapter = createPaperExecutionAdapter({
     account,
     feeModel: options.feeModel,
+    fillModel: options.fillModel,
     logger,
     now,
     journal(event) {
@@ -209,7 +245,7 @@ export async function createPaperSession(options) {
     };
   }
 
-  return Object.freeze({
+  const api = {
     /** True when state was restored from disk rather than freshly created. */
     restored,
     journal,
@@ -227,6 +263,23 @@ export async function createPaperSession(options) {
       const normalized = normalizeSymbol(symbol);
       if (!normalized.ok) return null;
       return adapter.getPosition(normalized.value);
+    },
+
+    /**
+     * The validated portfolio domain view of the paper ledger (MASTER_SPEC §7).
+     * Frozen, read-only, and never mutates the account.
+     */
+    async getPortfolioSnapshot() {
+      return toPortfolioSnapshot(adapter.snapshot(), { timestamp: Date.parse(now()), source: 'paper' });
+    },
+
+    /**
+     * The validated PnL domain view of the paper ledger (MASTER_SPEC §7).
+     *
+     * @param {{ symbol?: string }} [input]
+     */
+    async getPnLSnapshot(input = {}) {
+      return toPnLSnapshot(adapter.snapshot(), { timestamp: Date.parse(now()), symbol: input.symbol });
     },
 
     /**
@@ -259,11 +312,15 @@ export async function createPaperSession(options) {
       );
 
       const accountSnapshot = adapter.snapshot();
+      // The runtime kill switch is passed to the Risk Engine as an explicit
+      // input, which OR-s it with the static config flag (§44). Either layer can
+      // stop a trade; neither can widen a limit, and the engine owns the gate.
       const riskResult = evaluateTrade({
         proposal,
         account: toRiskAccountView(accountSnapshot),
         market: toRiskMarketView(market),
         riskConfig: options.riskConfig,
+        killSwitchEngaged: killSwitch.isEngaged(),
       });
 
       if (!riskResult.approved) {
@@ -392,6 +449,33 @@ export async function createPaperSession(options) {
     },
 
     /**
+     * Engage the runtime emergency stop. New entries are refused from the next
+     * submission until it is explicitly released. Always succeeds — a missing
+     * reason is recorded as UNSPECIFIED rather than blocking the stop.
+     *
+     * @param {string} [reason]
+     */
+    async engageKillSwitch(reason) {
+      const state = killSwitch.engage(reason);
+      recordKillSwitch(JOURNAL_EVENT.KILL_SWITCH_ENGAGED, state);
+      logger.warn('kill switch engaged', { reason: state.reason });
+      await flushJournal();
+      return state;
+    },
+
+    /** Release the runtime emergency stop and resume accepting entries. */
+    async disengageKillSwitch() {
+      const state = killSwitch.disengage();
+      recordKillSwitch(JOURNAL_EVENT.KILL_SWITCH_DISENGAGED, state);
+      logger.info('kill switch disengaged', {});
+      await flushJournal();
+      return state;
+    },
+
+    /** The current runtime kill-switch state, without changing it. */
+    killSwitchState: () => killSwitch.snapshot(),
+
+    /**
      * Wait for every queued journal append to land on disk.
      *
      * Exposed for callers (and the CLI) that read the journal right after an
@@ -410,7 +494,120 @@ export async function createPaperSession(options) {
     /** Validate a restored state document, exposed for the CLI. */
     validateState: validatePaperAccountState,
     validateDaily: validateDailyState,
-  });
+  };
+
+  /**
+   * Run a registered strategy and submit whatever proposal it emits.
+   *
+   * A strategy returning `null` is a deliberate "no signal" and nothing is
+   * risked. An emitted proposal travels through the unchanged risk -> execution
+   * path, so a strategy can never bypass the deterministic gate.
+   *
+   * @param {{ market: import('../market/market-snapshot.mjs').MarketSnapshot, strategyId?: string }} input
+   */
+  api.submitFromStrategy = async function submitFromStrategy(input) {
+    if (input === null || typeof input !== 'object' || !input.market) {
+      throw new ConfigError('submitFromStrategy requires { market }');
+    }
+    const strategy = strategyRegistry.get(input.strategyId ?? strategyRegistry.list()[0]);
+    const context = buildMarketContext(input.market, strategy.indicators);
+
+    let proposal;
+    try {
+      proposal = strategy.evaluate(context);
+    } catch (error) {
+      // A crashing strategy must fail closed: no signal, never a trade.
+      logger.warn('strategy threw — treating as no signal', {
+        strategyId: strategy.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      recordStrategyDecision({ strategy, context, action: SIGNAL_ACTION.NO_SIGNAL, reason: 'STRATEGY_ERROR' });
+      await flushJournal();
+      return noSignal();
+    }
+
+    if (proposal === null || proposal === undefined) {
+      // "No signal" is a decision worth recording (§21), not an absence.
+      recordStrategyDecision({ strategy, context, action: SIGNAL_ACTION.NO_SIGNAL, reason: 'NO_SIGNAL' });
+      await flushJournal();
+      return noSignal();
+    }
+
+    recordStrategyDecision({ strategy, context, action: SIGNAL_ACTION.EMIT, proposal });
+    const outcome = await api.submit({ proposal, market: input.market });
+    return { ...outcome, signal: true, proposal };
+  };
+
+  /**
+   * Record a StrategyDecision (§7) in the journal. Best-effort: a strategy that
+   * returns a malformed proposal must not be able to crash the audit path — the
+   * Risk Engine still rejects it through the unchanged `submit` route.
+   *
+   * @param {{ strategy: { id: string }, context: object, action: string, proposal?: object | null, reason?: string }} input
+   */
+  function recordStrategyDecision({ strategy, context, action, proposal = null, reason }) {
+    const symbol = proposal?.symbol ?? context.symbol;
+    const timestamp = Number.isFinite(proposal?.timestamp)
+      ? proposal.timestamp
+      : Number.isFinite(context.timestamp)
+        ? /** @type {number} */ (context.timestamp)
+        : Date.parse(now());
+
+    let decision;
+    try {
+      decision = createStrategyDecision({
+        strategyId: strategy.id,
+        symbol,
+        action,
+        signal:
+          action === SIGNAL_ACTION.EMIT
+            ? createTradingSignal({
+                strategyId: strategy.id,
+                symbol,
+                side: proposal.side,
+                confidence: proposal.confidence,
+                entryPrice: proposal.entryPrice,
+                stopLossPrice: proposal.stopLossPrice,
+                takeProfitPrice: proposal.takeProfitPrice,
+                timestamp: proposal.timestamp,
+              })
+            : undefined,
+        reason: reason ?? undefined,
+        timestamp,
+      });
+    } catch (error) {
+      logger.warn('strategy decision could not be recorded', {
+        strategyId: strategy.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+
+    appendToJournal(
+      createJournalEvent({
+        eventType: JOURNAL_EVENT.STRATEGY_DECISION,
+        timestamp: now(),
+        symbol: decision.symbol,
+        side: decision.signal?.side ?? null,
+        reason: decision.reason ?? decision.action,
+        metadata: {
+          strategyId: decision.strategyId,
+          action: decision.action,
+          smaFast: context.indicators?.smaFast ?? null,
+          smaSlow: context.indicators?.smaSlow ?? null,
+          atr: context.indicators?.atr ?? null,
+          lastClose: context.indicators?.lastClose ?? null,
+        },
+      }),
+    );
+  }
+
+  return Object.freeze(api);
+}
+
+/** The uniform "strategy emitted no proposal" result. */
+function noSignal() {
+  return { signal: false, approved: false, executed: false, reasonCode: REASON_CODE.NO_SIGNAL, proposal: null };
 }
 
 /**

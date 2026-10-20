@@ -14,15 +14,20 @@
 import { createHmac, randomUUID } from 'node:crypto';
 
 const EXECUTE = process.argv.includes('--execute');
-const KEY = process.env.BYBIT_API_KEY;
-const SECRET = process.env.BYBIT_API_SECRET;
+const isTestnet = process.env.BYBIT_TESTNET === 'true' || process.env.TESTNET_ENABLED === 'true';
+const KEY = isTestnet
+  ? (process.env.BYBIT_TESTNET_API_KEY || process.env.BYBIT_API_KEY)
+  : process.env.BYBIT_API_KEY;
+const SECRET = isTestnet
+  ? (process.env.BYBIT_TESTNET_API_SECRET || process.env.BYBIT_API_SECRET)
+  : process.env.BYBIT_API_SECRET;
 const RW = '5000';
 const BASE = process.env.BYBIT_TESTNET === 'true' ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com';
 const COIN = 'USDT';
 const PROBE_AMOUNT = '1';
 
 if (!KEY || !SECRET) {
-  console.error('Missing BYBIT_API_KEY / BYBIT_API_SECRET (run with --env-file=.env)');
+  console.error('Missing BYBIT_API_KEY / BYBIT_API_SECRET (or BYBIT_TESTNET_* for testnet, run with --env-file=.env)');
   process.exit(2);
 }
 
