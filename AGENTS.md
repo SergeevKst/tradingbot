@@ -1,6 +1,8 @@
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+Codex-specific workflow: `.agents/skills/graphify/SKILL.md`; practical guide: `docs/architecture/CODEBASE_NAVIGATION.md`.
+Before relying on the local index, run `node scripts/graphify_index.mjs check` and rebuild it if stale.
 
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 
