@@ -1,0 +1,170 @@
+{
+  "ok": true,
+  "descriptorSha256": "210460420fcf69bf1efa0a66ce2b89f3a6572c5427553614d9a51abe4af57f6a",
+  "deploymentId": "b6052ec2-1e36-46fd-9932-8850c0751be1",
+  "phases": [
+    {
+      "phase": "PAUSED",
+      "generation": 0
+    },
+    {
+      "phase": "QUIESCING",
+      "generation": 0,
+      "reserved": 1,
+      "via": "quiesce"
+    },
+    {
+      "phase": "PREPARING",
+      "generation": 0
+    },
+    {
+      "phase": "ARMED",
+      "generation": 0
+    },
+    {
+      "phase": "ACTIVE",
+      "generation": 1,
+      "members": 2
+    },
+    {
+      "phase": "QUIESCING",
+      "generation": 1,
+      "reserved": 2,
+      "via": "rollback",
+      "controlFilesCopied": false
+    },
+    {
+      "phase": "PREPARING",
+      "generation": 1
+    },
+    {
+      "phase": "ARMED",
+      "generation": 1
+    },
+    {
+      "phase": "ACTIVE",
+      "generation": 2,
+      "members": 2
+    }
+  ],
+  "forward": {
+    "transitionId": "1f5587b4-4dc1-48c5-a4f7-31c46b5fd0bb",
+    "instances": {
+      "core-analysis": "rehearsal-core-analysis-fwd",
+      "telegram": "rehearsal-telegram-fwd"
+    },
+    "via": "quiesce"
+  },
+  "rollback": {
+    "transitionId": "444969b9-4ba4-4369-93e8-67675407271b",
+    "instances": {
+      "core-analysis": "rehearsal-core-analysis-rb",
+      "telegram": "rehearsal-telegram-rb"
+    },
+    "via": "rollback"
+  },
+  "final": {
+    "phase": "ACTIVE",
+    "generation": 2,
+    "highWaterGeneration": 2,
+    "manifestVersion": "uai-v1.1-rehearsal-1",
+    "manifestSha256": "65bdfa2aa79a1e61bab7466802853a960b5c90c801b07f587ff78e11eacc3f8c",
+    "members": [
+      {
+        "slot": "core-analysis",
+        "instanceId": "rehearsal-core-analysis-rb",
+        "artifactSha256": "584907188ad286f2d0561097aba16c63d321a9fb701909c3f79d1b2564acd450"
+      },
+      {
+        "slot": "telegram",
+        "instanceId": "rehearsal-telegram-rb",
+        "artifactSha256": "9f813350f1e04bdb40c504fd02640b24c984dc3234669520abcd107eaeff96bc"
+      }
+    ]
+  },
+  "evidence": {
+    "ackDirectories": [
+      "1f5587b4-4dc1-48c5-a4f7-31c46b5fd0bb",
+      "444969b9-4ba4-4369-93e8-67675407271b"
+    ],
+    "transitionArchives": [
+      "1f5587b4-4dc1-48c5-a4f7-31c46b5fd0bb.json",
+      "444969b9-4ba4-4369-93e8-67675407271b.json"
+    ],
+    "auditLines": 21
+  },
+  "financialState": {
+    "fixture": "synthetic fixture journal: no live financial state, ledger, exchange account or order was read or written",
+    "declaredActions": [
+      {
+        "entryId": "fx-journal-trailing-1",
+        "kind": "trailing-stop-adjust",
+        "slot": "telegram",
+        "amount": "0.000",
+        "appliedDuring": "forward PREPARING (inside the barrier)"
+      },
+      {
+        "entryId": "fx-journal-harvest-1",
+        "kind": "harvest-close",
+        "slot": "telegram",
+        "amount": "0.010",
+        "appliedDuring": "rollback PREPARING (inside the barrier)"
+      }
+    ],
+    "journalBefore": [
+      {
+        "entryId": "fx-journal-open-1",
+        "kind": "open-trade",
+        "slot": "telegram",
+        "amount": "0.010"
+      },
+      {
+        "entryId": "fx-journal-closed-1",
+        "kind": "closed-trade",
+        "slot": "telegram",
+        "amount": "0.010"
+      }
+    ],
+    "journalAfter": [
+      {
+        "entryId": "fx-journal-open-1",
+        "kind": "open-trade",
+        "slot": "telegram",
+        "amount": "0.010"
+      },
+      {
+        "entryId": "fx-journal-closed-1",
+        "kind": "closed-trade",
+        "slot": "telegram",
+        "amount": "0.010"
+      },
+      {
+        "entryId": "fx-journal-trailing-1",
+        "kind": "trailing-stop-adjust",
+        "slot": "telegram",
+        "amount": "0.000",
+        "generation": 1,
+        "phase": "PREPARING"
+      },
+      {
+        "entryId": "fx-journal-harvest-1",
+        "kind": "harvest-close",
+        "slot": "telegram",
+        "amount": "0.010",
+        "generation": 2,
+        "phase": "PREPARING"
+      }
+    ],
+    "entryCountBefore": 2,
+    "entryCountAfter": 4,
+    "journalBeforeSha256": "a4faf6859f2897decc3259fdcfd2633a6e1d578ae9b0474e82ffe63f8facddc3",
+    "journalAfterSha256": "befe15dca18f57932f2339b575423b2149757e661d83ae7a0d1ee18dfa981f74",
+    "residualBeforeSha256": "a4faf6859f2897decc3259fdcfd2633a6e1d578ae9b0474e82ffe63f8facddc3",
+    "residualAfterSha256": "a4faf6859f2897decc3259fdcfd2633a6e1d578ae9b0474e82ffe63f8facddc3",
+    "residualEqual": true,
+    "declaredActionsApplied": true,
+    "duplicateEntryIds": [],
+    "noDuplicateEntry": true
+  },
+  "note": "fake effects only: no provider, exchange, Telegram or account call was made; the financial-state equality in financialState is proven on the synthetic fixture journal, not on live financial state"
+}

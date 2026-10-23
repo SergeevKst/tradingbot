@@ -345,7 +345,14 @@ test('SECURITY: only the storage layer writes files, and never inside the tradin
   // Stage 2 added persistence, so the blanket file-write ban is narrowed rather
   // than dropped: exactly one module owns disk I/O, and the trading logic
   // (risk, execution, market, domain, session) still cannot write anything.
-  const allowedStorageModules = ['src/state/jsonl-file.mjs'];
+  //
+  // UAI-05B adds a second, deliberately separate storage owner: the AI release
+  // control store. It is a control-plane directory (manifests, acks, audit), not
+  // financial state, and it is proven below to import no trading module.
+  const allowedStorageModules = [
+    'src/state/jsonl-file.mjs',
+    'src/ai/coordination/control-store.mjs',
+  ];
   const banned = ['writeFileSync', 'appendFileSync', 'child_process', 'execSync', 'spawnSync'];
 
   for (const file of allModules) {
@@ -368,6 +375,29 @@ test('SECURITY: only the storage layer writes files, and never inside the tradin
       !/writeFile\(|appendFile\(/.test(text),
       `${rel} must not call writeFile/appendFile directly — route disk I/O through src/state/jsonl-file.mjs`,
     );
+  }
+
+  // The control-plane store must stay outside the financial/trading boundary:
+  // it may coordinate AI releases but may not import risk, execution, session,
+  // reconciliation, state or Telegram modules.
+  const controlStore = 'src/ai/coordination/control-store.mjs';
+  const forbiddenForControlStore = [
+    '../risk/',
+    '../execution/',
+    '../session/',
+    '../reconciliation/',
+    '../state/',
+    '../telegram/',
+    '../adapters/bybit/',
+    '../testnet/',
+  ];
+  for (const spec of importSpecifiers(resolve(projectRoot, controlStore))) {
+    for (const prefix of forbiddenForControlStore) {
+      assert.ok(
+        !spec.includes(prefix),
+        `${controlStore} must not import ${spec} — the control plane cannot touch trading state`,
+      );
+    }
   }
 });
 
@@ -480,10 +510,17 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/ai/ai-provider.mjs',
     'src/ai/analysis-schema.mjs',
     'src/ai/context-builder.mjs',
+    'src/ai/coordination/control-store.mjs',
+    'src/ai/coordination/generation-guard.mjs',
+    'src/ai/coordination/release-state.mjs',
+    'src/ai/coordination/rollback-transition.mjs',
+    'src/ai/core-ai-composition.mjs',
     'src/ai/index.mjs',
     'src/ai/interface.mjs',
     'src/ai/mock-provider.mjs',
+    'src/ai/operation-profiles.mjs',
     'src/ai/prompts.mjs',
+    'src/ai/runtime.mjs',
     'src/ai/types.mjs',
     'src/backtest/engine.mjs',
     'src/backtest/historical-data.mjs',
@@ -491,9 +528,14 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/backtest/metrics.mjs',
     'src/backtest/signal-source.mjs',
     'src/backtest/slippage-model.mjs',
+    'src/config/ai-identity-manifest.mjs',
+    'src/config/ai-release-report.mjs',
+    'src/config/ai-release-schema.mjs',
+    'src/config/ai-runtime.mjs',
     'src/config/ai.mjs',
     'src/config/config-error.mjs',
     'src/config/env.mjs',
+    'src/config/jcs.mjs',
     'src/config/live.mjs',
     'src/config/paper.mjs',
     'src/config/parse.mjs',
@@ -520,6 +562,7 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/domain/strategy-decision.mjs',
     'src/errors/ai-provider-error.mjs',
     'src/errors/app-error.mjs',
+    'src/errors/coordination-error.mjs',
     'src/errors/index.mjs',
     'src/errors/taxonomy.mjs',
     'src/execution/execution-adapter.mjs',
@@ -595,6 +638,8 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/testnet/order-mapper.mjs',
     'src/testnet/order-state-machine.mjs',
     'src/testnet/private-websocket.mjs',
+    'src/telegram/ai-composition.mjs',
+    'src/telegram/ai-effect-gateway.mjs',
     'src/telegram/bot.mjs',
     'src/telegram/deepseek-client.mjs',
     'src/telegram/execute.mjs',

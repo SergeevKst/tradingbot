@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: XP-01: independent core and Telegram children share one identity and generation
+ok 1 - XP-01: independent core and Telegram children share one identity and generation
+  ---
+  duration_ms: 728.971625
+  type: 'test'
+  ...
+# Subtest: XP-02: a stale or wrong identity process is non-ready before its first request
+ok 2 - XP-02: a stale or wrong identity process is non-ready before its first request
+  ---
+  duration_ms: 977.1375
+  type: 'test'
+  ...
+# Subtest: XP-03: a disabled core bootstrap validates identity, needs no key and rejects ANALYZE
+ok 3 - XP-03: a disabled core bootstrap validates identity, needs no key and rejects ANALYZE
+  ---
+  duration_ms: 690.200167
+  type: 'test'
+  ...
+# Subtest: XP-04: missing, duplicate or stale target participation blocks activation
+ok 4 - XP-04: missing, duplicate or stale target participation blocks activation
+  ---
+  duration_ms: 596.619542
+  type: 'test'
+  ...
+# Subtest: XP-05: a held Guard workflow blocks the barrier and its late content has no effect
+ok 5 - XP-05: a held Guard workflow blocks the barrier and its late content has no effect
+  ---
+  duration_ms: 853.937792
+  type: 'test'
+  ...
+# Subtest: XP-06: pause after the control check but before dispatch still blocks the commit
+ok 6 - XP-06: pause after the control check but before dispatch still blocks the commit
+  ---
+  duration_ms: 907.531083
+  type: 'test'
+  ...
+# Subtest: XP-07: a pending human approval invalidates across a transition and is never replayed
+ok 7 - XP-07: a pending human approval invalidates across a transition and is never replayed
+  ---
+  duration_ms: 778.542125
+  type: 'test'
+  ...
+# Subtest: BOT-SEAM entry: a delayed exec tap after validation but before dispatch yields zero orders
+ok 8 - BOT-SEAM entry: a delayed exec tap after validation but before dispatch yields zero orders
+  ---
+  duration_ms: 1200.840834
+  type: 'test'
+  ...
+# Subtest: BOT-SEAM auto-close: a close held between the verdict and the dispatch is never placed
+ok 9 - BOT-SEAM auto-close: a close held between the verdict and the dispatch is never placed
+  ---
+  duration_ms: 1285.116583
+  type: 'test'
+  ...
+# Subtest: BOT-SEAM entry: the preparation runs inside the counted scope and its result reaches the write
+ok 10 - BOT-SEAM entry: the preparation runs inside the counted scope and its result reaches the write
+  ---
+  duration_ms: 693.210708
+  type: 'test'
+  ...
+# Subtest: BOT-SEAM entry: a preparation that aborts the trade places no order at all
+ok 11 - BOT-SEAM entry: a preparation that aborts the trade places no order at all
+  ---
+  duration_ms: 713.861167
+  type: 'test'
+  ...
+# Subtest: BOT-SEAM auto-close: the position is resolved by prepare and exactly one close is placed
+ok 12 - BOT-SEAM auto-close: the position is resolved by prepare and exactly one close is placed
+  ---
+  duration_ms: 767.737959
+  type: 'test'
+  ...
+# Subtest: XP-08: a crashed participant keeps the barrier gated until it is fenced
+ok 13 - XP-08: a crashed participant keeps the barrier gated until it is fenced
+  ---
+  duration_ms: 1238.405792
+  type: 'test'
+  ...
+# Subtest: XP-09: a crash at every control write boundary yields old/new-record-or-paused, never a torn ACTIVE
+ok 14 - XP-09: a crash at every control write boundary yields old/new-record-or-paused, never a torn ACTIVE
+  ---
+  duration_ms: 1989.491666
+  type: 'test'
+  ...
+# Subtest: XP-10: rollback to the same digest advances the generation and revives no token
+ok 15 - XP-10: rollback to the same digest advances the generation and revives no token
+  ---
+  duration_ms: 1445.384709
+  type: 'test'
+  ...
+# Subtest: XP-11: drift, an unreadable store or profile skew gates AI and recovers without rebinding
+ok 16 - XP-11: drift, an unreadable store or profile skew gates AI and recovers without rebinding
+  ---
+  duration_ms: 772.004584
+  type: 'test'
+  ...
+# Subtest: XP-12: an old-binary restart refuses identity and a competing writer loses
+ok 17 - XP-12: an old-binary restart refuses identity and a competing writer loses
+  ---
+  duration_ms: 1705.794208
+  type: 'test'
+  ...
+# Subtest: XP-13: a hung participant blocks the transition without an implicit fence; protection continues
+ok 18 - XP-13: a hung participant blocks the transition without an implicit fence; protection continues
+  ---
+  duration_ms: 1065.485209
+  type: 'test'
+  ...
+# Subtest: XP-14: disaster recovery starts a new deployment ID, never a reused generation
+ok 19 - XP-14: disaster recovery starts a new deployment ID, never a reused generation
+  ---
+  duration_ms: 1250.680292
+  type: 'test'
+  ...
+# Subtest: XP-15: paused AI with adversarial approvals produces no shadow work and no secret leak
+ok 20 - XP-15: paused AI with adversarial approvals produces no shadow work and no secret leak
+  ---
+  duration_ms: 1054.576791
+  type: 'test'
+  ...
+# Subtest: XP-16: empty-roster first activation, then a slot add and a disable, all through the barrier
+ok 21 - XP-16: empty-roster first activation, then a slot add and a disable, all through the barrier
+  ---
+  duration_ms: 1241.29075
+  type: 'test'
+  ...
+# Subtest: XP-17: stage grants authorize in-process staging, abort cleanly and survive a controller restart
+ok 22 - XP-17: stage grants authorize in-process staging, abort cleanly and survive a controller restart
+  ---
+  duration_ms: 1275.592083
+  type: 'test'
+  ...
+# Subtest: XP-18: recovery from QUIESCING/PREPARING/ARMED keeps old and target obligations with fresh acks
+ok 23 - XP-18: recovery from QUIESCING/PREPARING/ARMED keeps old and target obligations with fresh acks
+  ---
+  duration_ms: 2816.064583
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 26125.840583

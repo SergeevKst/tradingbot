@@ -1,0 +1,3504 @@
+
+> bybit-tradingbot@0.1.0 test
+> node --test "test/**/*.test.mjs"
+
+TAP version 13
+# Subtest: AI types: a minimal AIContext validates
+ok 1 - AI types: a minimal AIContext validates
+  ---
+  duration_ms: 3.533667
+  type: 'test'
+  ...
+# Subtest: AI types: AIContext is closed — an unknown field fails closed
+ok 2 - AI types: AIContext is closed — an unknown field fails closed
+  ---
+  duration_ms: 0.518458
+  type: 'test'
+  ...
+# Subtest: AI types: AIContext requires a market symbol
+ok 3 - AI types: AIContext requires a market symbol
+  ---
+  duration_ms: 0.275583
+  type: 'test'
+  ...
+# Subtest: AI types: AIContext rejects non-objects
+ok 4 - AI types: AIContext rejects non-objects
+  ---
+  duration_ms: 0.155583
+  type: 'test'
+  ...
+# Subtest: AI types: the no-sizing rule covers quantity and leverage
+ok 5 - AI types: the no-sizing rule covers quantity and leverage
+  ---
+  duration_ms: 0.439875
+  type: 'test'
+  ...
+# Subtest: AI types: AIContext rejects a nested position carrying sizing fields
+ok 6 - AI types: AIContext rejects a nested position carrying sizing fields
+  ---
+  duration_ms: 0.132958
+  type: 'test'
+  ...
+# Subtest: AI types: assertAIAnalysis is the domain constructor (one closed schema)
+ok 7 - AI types: assertAIAnalysis is the domain constructor (one closed schema)
+  ---
+  duration_ms: 0.599917
+  type: 'test'
+  ...
+# Subtest: AI types: AIAnalysis is closed and carries no sizing field
+ok 8 - AI types: AIAnalysis is closed and carries no sizing field
+  ---
+  duration_ms: 0.213875
+  type: 'test'
+  ...
+# Subtest: AIProvider: defineAIProvider freezes a valid definition
+ok 9 - AIProvider: defineAIProvider freezes a valid definition
+  ---
+  duration_ms: 0.505
+  type: 'test'
+  ...
+# Subtest: AIProvider: defineAIProvider rejects a malformed definition
+ok 10 - AIProvider: defineAIProvider rejects a malformed definition
+  ---
+  duration_ms: 0.777042
+  type: 'test'
+  ...
+# Subtest: AIProvider: assertAIProvider rejects a partial object and accepts a defined one
+ok 11 - AIProvider: assertAIProvider rejects a partial object and accepts a defined one
+  ---
+  duration_ms: 0.265667
+  type: 'test'
+  ...
+# Subtest: AIProvider: analyze(context) resolves to a frozen, validated outcome
+ok 12 - AIProvider: analyze(context) resolves to a frozen, validated outcome
+  ---
+  duration_ms: 0.204
+  type: 'test'
+  ...
+# Subtest: AI outcome: ok is true only for status OK WITH an analysis
+ok 13 - AI outcome: ok is true only for status OK WITH an analysis
+  ---
+  duration_ms: 0.104125
+  type: 'test'
+  ...
+# Subtest: AIProviderError: is the AI_PROVIDER member of the taxonomy
+ok 14 - AIProviderError: is the AI_PROVIDER member of the taxonomy
+  ---
+  duration_ms: 0.156458
+  type: 'test'
+  ...
+# Subtest: AIProviderError: kind is recorded, defaults to UNKNOWN and survives toJSON
+ok 15 - AIProviderError: kind is recorded, defaults to UNKNOWN and survives toJSON
+  ---
+  duration_ms: 0.602042
+  type: 'test'
+  ...
+# Subtest: ENGINE: a take profit is reached and the round trip is reported
+ok 16 - ENGINE: a take profit is reached and the round trip is reported
+  ---
+  duration_ms: 10.410209
+  type: 'test'
+  ...
+# Subtest: ENGINE: a stop loss is reached on the bar low, adversarially
+ok 17 - ENGINE: a stop loss is reached on the bar low, adversarially
+  ---
+  duration_ms: 2.937875
+  type: 'test'
+  ...
+# Subtest: ENGINE: a bar that crosses BOTH levels resolves to the stop (conservative)
+ok 18 - ENGINE: a bar that crosses BOTH levels resolves to the stop (conservative)
+  ---
+  duration_ms: 1.148333
+  type: 'test'
+  ...
+# Subtest: ENGINE: a position left open is settled at the final bar
+ok 19 - ENGINE: a position left open is settled at the final bar
+  ---
+  duration_ms: 2.330583
+  type: 'test'
+  ...
+# Subtest: ENGINE: fees and slippage both reduce the result
+ok 20 - ENGINE: fees and slippage both reduce the result
+  ---
+  duration_ms: 2.664583
+  type: 'test'
+  ...
+# Subtest: ENGINE: the Risk Engine gate is not bypassed by a bad proposal
+ok 21 - ENGINE: the Risk Engine gate is not bypassed by a bad proposal
+  ---
+  duration_ms: 0.460416
+  type: 'test'
+  ...
+# Subtest: ENGINE: a throwing signal source fails closed
+ok 22 - ENGINE: a throwing signal source fails closed
+  ---
+  duration_ms: 0.749417
+  type: 'test'
+  ...
+# Subtest: ENGINE: AI analysis gates the deterministic strategy during replay
+ok 23 - ENGINE: AI analysis gates the deterministic strategy during replay
+  ---
+  duration_ms: 4.713917
+  type: 'test'
+  ...
+# Subtest: ENGINE: replay is deterministic — identical inputs reconstruct the same run
+ok 24 - ENGINE: replay is deterministic — identical inputs reconstruct the same run
+  ---
+  duration_ms: 2.071708
+  type: 'test'
+  ...
+# Subtest: ENGINE: required inputs are validated
+ok 25 - ENGINE: required inputs are validated
+  ---
+  duration_ms: 1.168083
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: a valid series is normalized, frozen and ordered
+ok 26 - HISTORICAL: a valid series is normalized, frozen and ordered
+  ---
+  duration_ms: 1.57325
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: empty and non-array inputs are refused
+ok 27 - HISTORICAL: empty and non-array inputs are refused
+  ---
+  duration_ms: 0.784666
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: duplicate timestamps are refused
+ok 28 - HISTORICAL: duplicate timestamps are refused
+  ---
+  duration_ms: 2.045584
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: an out-of-order series is refused
+ok 29 - HISTORICAL: an out-of-order series is refused
+  ---
+  duration_ms: 0.193333
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: impossible prices are refused, never silently dropped
+ok 30 - HISTORICAL: impossible prices are refused, never silently dropped
+  ---
+  duration_ms: 0.325042
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: gaps are reported explicitly, not hidden
+ok 31 - HISTORICAL: gaps are reported explicitly, not hidden
+  ---
+  duration_ms: 0.697959
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: loadHistoricalData accepts an array and an object dataset
+ok 32 - HISTORICAL: loadHistoricalData accepts an array and an object dataset
+  ---
+  duration_ms: 0.983375
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: loadHistoricalData reads a JSON file through the injected fs
+ok 33 - HISTORICAL: loadHistoricalData reads a JSON file through the injected fs
+  ---
+  duration_ms: 0.257791
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: loadHistoricalData reads JSONL by extension
+ok 34 - HISTORICAL: loadHistoricalData reads JSONL by extension
+  ---
+  duration_ms: 0.649459
+  type: 'test'
+  ...
+# Subtest: HISTORICAL: corrupt files are refused with a location
+ok 35 - HISTORICAL: corrupt files are refused with a location
+  ---
+  duration_ms: 0.623375
+  type: 'test'
+  ...
+# Subtest: METRICS: maximum drawdown is peak-to-trough
+ok 36 - METRICS: maximum drawdown is peak-to-trough
+  ---
+  duration_ms: 1.402417
+  type: 'test'
+  ...
+# Subtest: METRICS: Sharpe-like ratio is undefined without dispersion
+ok 37 - METRICS: Sharpe-like ratio is undefined without dispersion
+  ---
+  duration_ms: 0.299584
+  type: 'test'
+  ...
+# Subtest: METRICS: the full metric set is computed from the curve and trades
+ok 38 - METRICS: the full metric set is computed from the curve and trades
+  ---
+  duration_ms: 0.637625
+  type: 'test'
+  ...
+# Subtest: METRICS: undefined ratios are null, not NaN
+ok 39 - METRICS: undefined ratios are null, not NaN
+  ---
+  duration_ms: 0.511583
+  type: 'test'
+  ...
+# Subtest: METRICS: malformed input is refused
+ok 40 - METRICS: malformed input is refused
+  ---
+  duration_ms: 0.232542
+  type: 'test'
+  ...
+# Subtest: SLIPPAGE: the zero model leaves the book untouched
+ok 41 - SLIPPAGE: the zero model leaves the book untouched
+  ---
+  duration_ms: 1.156083
+  type: 'test'
+  ...
+# Subtest: SLIPPAGE: the rate model widens the book adversarially on both sides
+ok 42 - SLIPPAGE: the rate model widens the book adversarially on both sides
+  ---
+  duration_ms: 0.217875
+  type: 'test'
+  ...
+# Subtest: SLIPPAGE: bad rates and untrusted models are refused
+ok 43 - SLIPPAGE: bad rates and untrusted models are refused
+  ---
+  duration_ms: 0.454375
+  type: 'test'
+  ...
+# Subtest: SLIPPAGE: a spread plus slippage is reflected in the executable book
+ok 44 - SLIPPAGE: a spread plus slippage is reflected in the executable book
+  ---
+  duration_ms: 0.158834
+  type: 'test'
+  ...
+# Subtest: SLIPPAGE: a crossed book is refused rather than presented
+ok 45 - SLIPPAGE: a crossed book is refused rather than presented
+  ---
+  duration_ms: 0.127875
+  type: 'test'
+  ...
+# Subtest: REST: an unknown base URL is refused at construction
+ok 46 - REST: an unknown base URL is refused at construction
+  ---
+  duration_ms: 2.236583
+  type: 'test'
+  ...
+# Subtest: REST: the client only calls public /v5/market paths over GET
+ok 47 - REST: the client only calls public /v5/market paths over GET
+  ---
+  duration_ms: 0.981292
+  type: 'test'
+  ...
+# Subtest: REST: a ticker, orderbook and candles normalize into domain types
+ok 48 - REST: a ticker, orderbook and candles normalize into domain types
+  ---
+  duration_ms: 1.944959
+  type: 'test'
+  ...
+# Subtest: REST: a full snapshot assembles instrument, top of book and candles
+ok 49 - REST: a full snapshot assembles instrument, top of book and candles
+  ---
+  duration_ms: 2.546916
+  type: 'test'
+  ...
+# Subtest: REST: instrument metadata is cached across calls
+ok 50 - REST: instrument metadata is cached across calls
+  ---
+  duration_ms: 0.965417
+  type: 'test'
+  ...
+# Subtest: REST: HTTP 429 is a retryable RateLimitError and the retry succeeds
+ok 51 - REST: HTTP 429 is a retryable RateLimitError and the retry succeeds
+  ---
+  duration_ms: 0.381209
+  type: 'test'
+  ...
+# Subtest: REST: HTTP 5xx is a retryable NetworkError
+ok 52 - REST: HTTP 5xx is a retryable NetworkError
+  ---
+  duration_ms: 0.354417
+  type: 'test'
+  ...
+# Subtest: REST: a transport rejection is a NetworkError
+ok 53 - REST: a transport rejection is a NetworkError
+  ---
+  duration_ms: 0.231917
+  type: 'test'
+  ...
+# Subtest: REST: a rate-limit retCode is retried, a data retCode is not
+ok 54 - REST: a rate-limit retCode is retried, a data retCode is not
+  ---
+  duration_ms: 0.962334
+  type: 'test'
+  ...
+# Subtest: REST: malformed JSON is a DataError
+ok 55 - REST: malformed JSON is a DataError
+  ---
+  duration_ms: 0.664541
+  type: 'test'
+  ...
+# Subtest: REST: a missing implementation is a configuration error
+ok 56 - REST: a missing implementation is a configuration error
+  ---
+  duration_ms: 0.213041
+  type: 'test'
+  ...
+# Subtest: WS: connect subscribes to the configured public topics
+ok 57 - WS: connect subscribes to the configured public topics
+  ---
+  duration_ms: 1.838625
+  type: 'test'
+  ...
+# Subtest: WS: the ping protocol is driven by a timer
+ok 58 - WS: the ping protocol is driven by a timer
+  ---
+  duration_ms: 0.236083
+  type: 'test'
+  ...
+# Subtest: WS: messages are parsed and routed, control frames are ignored
+ok 59 - WS: messages are parsed and routed, control frames are ignored
+  ---
+  duration_ms: 0.325375
+  type: 'test'
+  ...
+# Subtest: WS: a dropped socket reconnects with backoff
+ok 60 - WS: a dropped socket reconnects with backoff
+  ---
+  duration_ms: 0.261584
+  type: 'test'
+  ...
+# Subtest: WS: reconnection can be disabled and close() is terminal
+ok 61 - WS: reconnection can be disabled and close() is terminal
+  ---
+  duration_ms: 0.277167
+  type: 'test'
+  ...
+# Subtest: WS: a missing WebSocket implementation is a configuration error
+ok 62 - WS: a missing WebSocket implementation is a configuration error
+  ---
+  duration_ms: 0.355125
+  type: 'test'
+  ...
+# Subtest: config-schema: a valid PAPER runtime config passes through
+ok 63 - config-schema: a valid PAPER runtime config passes through
+  ---
+  duration_ms: 1.104916
+  type: 'test'
+  ...
+# Subtest: config-schema: LIVE is refused as configuration
+ok 64 - config-schema: LIVE is refused as configuration
+  ---
+  duration_ms: 0.466125
+  type: 'test'
+  ...
+# Subtest: config-schema: an unknown trading mode is refused
+ok 65 - config-schema: an unknown trading mode is refused
+  ---
+  duration_ms: 0.229792
+  type: 'test'
+  ...
+# Subtest: config-schema: invalid risk limits are refused
+ok 66 - config-schema: invalid risk limits are refused
+  ---
+  duration_ms: 0.139584
+  type: 'test'
+  ...
+# Subtest: config-schema: a bad log level is refused
+ok 67 - config-schema: a bad log level is refused
+  ---
+  duration_ms: 0.404375
+  type: 'test'
+  ...
+# Subtest: config-schema: AI must be an explicit boolean and defaults off
+ok 68 - config-schema: AI must be an explicit boolean and defaults off
+  ---
+  duration_ms: 1.012792
+  type: 'test'
+  ...
+# Subtest: config-schema: strategy parameters must be finite numbers
+ok 69 - config-schema: strategy parameters must be finite numbers
+  ---
+  duration_ms: 0.28125
+  type: 'test'
+  ...
+# Subtest: config-schema: nested config sections are required
+ok 70 - config-schema: nested config sections are required
+  ---
+  duration_ms: 0.28725
+  type: 'test'
+  ...
+# Subtest: domain: a LIMIT order request requires a price and is frozen
+ok 71 - domain: a LIMIT order request requires a price and is frozen
+  ---
+  duration_ms: 1.564291
+  type: 'test'
+  ...
+# Subtest: domain: a MARKET order request must not carry a price
+ok 72 - domain: a MARKET order request must not carry a price
+  ---
+  duration_ms: 0.313833
+  type: 'test'
+  ...
+# Subtest: domain: order request schemas are closed
+ok 73 - domain: order request schemas are closed
+  ---
+  duration_ms: 0.118875
+  type: 'test'
+  ...
+# Subtest: domain: order lifecycle and fill invariants
+ok 74 - domain: order lifecycle and fill invariants
+  ---
+  duration_ms: 0.617208
+  type: 'test'
+  ...
+# Subtest: domain: a position is validated and frozen
+ok 75 - domain: a position is validated and frozen
+  ---
+  duration_ms: 0.360542
+  type: 'test'
+  ...
+# Subtest: domain: portfolio and PnL snapshots validate nested members
+ok 76 - domain: portfolio and PnL snapshots validate nested members
+  ---
+  duration_ms: 0.488875
+  type: 'test'
+  ...
+# Subtest: domain: market ticks refuse a crossed book
+ok 77 - domain: market ticks refuse a crossed book
+  ---
+  duration_ms: 0.461
+  type: 'test'
+  ...
+# Subtest: domain: order book requires sorted, uncrossed levels
+ok 78 - domain: order book requires sorted, uncrossed levels
+  ---
+  duration_ms: 0.468042
+  type: 'test'
+  ...
+# Subtest: domain: a signal carries direction but never sizing
+ok 79 - domain: a signal carries direction but never sizing
+  ---
+  duration_ms: 0.752791
+  type: 'test'
+  ...
+# Subtest: domain: strategy decision enforces EMIT/NO_SIGNAL consistency
+ok 80 - domain: strategy decision enforces EMIT/NO_SIGNAL consistency
+  ---
+  duration_ms: 0.666167
+  type: 'test'
+  ...
+# Subtest: domain: a market feature requires a finite value
+ok 81 - domain: a market feature requires a finite value
+  ---
+  duration_ms: 0.252916
+  type: 'test'
+  ...
+# Subtest: domain: an AI analysis is schema-only and cannot smuggle an order
+ok 82 - domain: an AI analysis is schema-only and cannot smuggle an order
+  ---
+  duration_ms: 0.241708
+  type: 'test'
+  ...
+# Subtest: errors: AppError defaults are fail-closed
+ok 83 - errors: AppError defaults are fail-closed
+  ---
+  duration_ms: 1.691125
+  type: 'test'
+  ...
+# Subtest: errors: AppError preserves structured details and cause
+ok 84 - errors: AppError preserves structured details and cause
+  ---
+  duration_ms: 0.658166
+  type: 'test'
+  ...
+# Subtest: errors: toJSON exposes classification, not a stack
+ok 85 - errors: toJSON exposes classification, not a stack
+  ---
+  duration_ms: 0.169708
+  type: 'test'
+  ...
+# Subtest: errors: every taxonomy class has the expected code and retryability
+ok 86 - errors: every taxonomy class has the expected code and retryability
+  ---
+  duration_ms: 0.454583
+  type: 'test'
+  ...
+# Subtest: errors: non-idempotent OrderError is never blindly retryable
+ok 87 - errors: non-idempotent OrderError is never blindly retryable
+  ---
+  duration_ms: 0.216959
+  type: 'test'
+  ...
+# Subtest: errors: an unknown error is not retryable
+ok 88 - errors: an unknown error is not retryable
+  ---
+  duration_ms: 0.080416
+  type: 'test'
+  ...
+# Subtest: errors: ConfigError is now the configuration member of the taxonomy
+ok 89 - errors: ConfigError is now the configuration member of the taxonomy
+  ---
+  duration_ms: 0.26225
+  type: 'test'
+  ...
+# Subtest: errors: domain validation throws the typed ValidationError
+ok 90 - errors: domain validation throws the typed ValidationError
+  ---
+  duration_ms: 11.647041
+  type: 'test'
+  ...
+# Subtest: parseMeta accepts complete metadata
+ok 91 - parseMeta accepts complete metadata
+  ---
+  duration_ms: 1.870291
+  type: 'test'
+  ...
+# Subtest: parseMeta rejects malformed or incomplete metadata
+ok 92 - parseMeta rejects malformed or incomplete metadata
+  ---
+  duration_ms: 0.190917
+  type: 'test'
+  ...
+# Subtest: classifyFreshness accepts matching SHA and indexed input digest
+ok 93 - classifyFreshness accepts matching SHA and indexed input digest
+  ---
+  duration_ms: 0.12475
+  type: 'test'
+  ...
+# Subtest: classifyFreshness rejects a different SHA or changed indexed files
+ok 94 - classifyFreshness rejects a different SHA or changed indexed files
+  ---
+  duration_ms: 0.097125
+  type: 'test'
+  ...
+# Subtest: kill-switch: config check fails closed on a missing flag
+ok 95 - kill-switch: config check fails closed on a missing flag
+  ---
+  duration_ms: 0.969125
+  type: 'test'
+  ...
+# Subtest: kill-switch: the runtime control is disengaged by default
+ok 96 - kill-switch: the runtime control is disengaged by default
+  ---
+  duration_ms: 0.738458
+  type: 'test'
+  ...
+# Subtest: kill-switch: engage always engages, even without a reason
+ok 97 - kill-switch: engage always engages, even without a reason
+  ---
+  duration_ms: 0.152958
+  type: 'test'
+  ...
+# Subtest: kill-switch: an injected control must satisfy the contract
+ok 98 - kill-switch: an injected control must satisfy the contract
+  ---
+  duration_ms: 0.486542
+  type: 'test'
+  ...
+# Subtest: kill-switch: a control can be constructed already engaged and released
+ok 99 - kill-switch: a control can be constructed already engaged and released
+  ---
+  duration_ms: 1.459875
+  type: 'test'
+  ...
+# Subtest: kill-switch: the config flag must be a boolean
+ok 100 - kill-switch: the config flag must be a boolean
+  ---
+  duration_ms: 0.876875
+  type: 'test'
+  ...
+# Subtest: kill-switch: loadRiskLimits emits a validated, disengaged flag
+ok 101 - kill-switch: loadRiskLimits emits a validated, disengaged flag
+  ---
+  duration_ms: 0.380541
+  type: 'test'
+  ...
+# Subtest: kill-switch: the Risk Engine refuses any proposal while engaged
+ok 102 - kill-switch: the Risk Engine refuses any proposal while engaged
+  ---
+  duration_ms: 0.594416
+  type: 'test'
+  ...
+# Subtest: kill-switch: the decision is deterministic for the same input
+ok 103 - kill-switch: the decision is deterministic for the same input
+  ---
+  duration_ms: 0.509125
+  type: 'test'
+  ...
+# Subtest: live-config: disabled by default and always mainnet
+ok 104 - live-config: disabled by default and always mainnet
+  ---
+  duration_ms: 1.071375
+  type: 'test'
+  ...
+# Subtest: live-config: activation requires LIVE_ENABLED and TRADING_MODE together
+ok 105 - live-config: activation requires LIVE_ENABLED and TRADING_MODE together
+  ---
+  duration_ms: 0.541416
+  type: 'test'
+  ...
+# Subtest: live-config: a live configuration refuses testnet in any form
+ok 106 - live-config: a live configuration refuses testnet in any form
+  ---
+  duration_ms: 0.13825
+  type: 'test'
+  ...
+# Subtest: live-config: a malformed flag is an error, never a default
+ok 107 - live-config: a malformed flag is an error, never a default
+  ---
+  duration_ms: 0.093958
+  type: 'test'
+  ...
+# Subtest: live-config: live credentials come only from the dedicated live variables
+ok 108 - live-config: live credentials come only from the dedicated live variables
+  ---
+  duration_ms: 0.675334
+  type: 'test'
+  ...
+# Subtest: checklist: §46 has fourteen lines, thirteen of them attestable
+ok 109 - checklist: §46 has fourteen lines, thirteen of them attestable
+  ---
+  duration_ms: 0.083458
+  type: 'test'
+  ...
+# Subtest: checklist: all true passes; missing, false and non-boolean fail
+ok 110 - checklist: all true passes; missing, false and non-boolean fail
+  ---
+  duration_ms: 0.409917
+  type: 'test'
+  ...
+# Subtest: checklist: evaluation is deterministic and reports unexpected keys
+ok 111 - checklist: evaluation is deterministic and reports unexpected keys
+  ---
+  duration_ms: 0.309375
+  type: 'test'
+  ...
+# Subtest: credentials: dedicated live credentials are separated
+ok 112 - credentials: dedicated live credentials are separated
+  ---
+  duration_ms: 0.504542
+  type: 'test'
+  ...
+# Subtest: credentials: missing live credentials fail closed
+ok 113 - credentials: missing live credentials fail closed
+  ---
+  duration_ms: 0.896459
+  type: 'test'
+  ...
+# Subtest: credentials: testnet mode in a live configuration is refused
+ok 114 - credentials: testnet mode in a live configuration is refused
+  ---
+  duration_ms: 0.490084
+  type: 'test'
+  ...
+# Subtest: credentials: a key shared between live and testnet is refused
+ok 115 - credentials: a key shared between live and testnet is refused
+  ---
+  duration_ms: 0.121792
+  type: 'test'
+  ...
+# Subtest: live-gate: a fully satisfied input grants readiness
+ok 116 - live-gate: a fully satisfied input grants readiness
+  ---
+  duration_ms: 0.641958
+  type: 'test'
+  ...
+# Subtest: live-gate: empty input is refused
+ok 117 - live-gate: empty input is refused
+  ---
+  duration_ms: 0.24125
+  type: 'test'
+  ...
+# Subtest: live-gate: the explicit flag is read from config, not evidence
+ok 118 - live-gate: the explicit flag is read from config, not evidence
+  ---
+  duration_ms: 0.443167
+  type: 'test'
+  ...
+# Subtest: live-gate: an unattested checklist item blocks readiness
+ok 119 - live-gate: an unattested checklist item blocks readiness
+  ---
+  duration_ms: 0.117958
+  type: 'test'
+  ...
+# Subtest: live-gate: shared or missing credentials block readiness
+ok 120 - live-gate: shared or missing credentials block readiness
+  ---
+  duration_ms: 0.259
+  type: 'test'
+  ...
+# Subtest: live-gate: invalid risk limits block readiness
+ok 121 - live-gate: invalid risk limits block readiness
+  ---
+  duration_ms: 1.119875
+  type: 'test'
+  ...
+# Subtest: live-gate: an engaged or malformed emergency stop blocks readiness
+ok 122 - live-gate: an engaged or malformed emergency stop blocks readiness
+  ---
+  duration_ms: 0.300083
+  type: 'test'
+  ...
+# Subtest: live-gate: a missing audit journal blocks readiness
+ok 123 - live-gate: a missing audit journal blocks readiness
+  ---
+  duration_ms: 0.227667
+  type: 'test'
+  ...
+# Subtest: live-gate: evaluation is deterministic
+ok 124 - live-gate: evaluation is deterministic
+  ---
+  duration_ms: 0.129292
+  type: 'test'
+  ...
+# Subtest: live-gate: assertLiveReady returns a decision or throws
+ok 125 - live-gate: assertLiveReady returns a decision or throws
+  ---
+  duration_ms: 0.45925
+  type: 'test'
+  ...
+# Subtest: emergency controls: engage and release are audited
+ok 126 - emergency controls: engage and release are audited
+  ---
+  duration_ms: 1.883709
+  type: 'test'
+  ...
+# Subtest: emergency controls: a missing journal or kill switch is refused at construction
+ok 127 - emergency controls: a missing journal or kill switch is refused at construction
+  ---
+  duration_ms: 0.368959
+  type: 'test'
+  ...
+# Subtest: live-session: construction is refused unless the gate passes, and the refusal is audited
+ok 128 - live-session: construction is refused unless the gate passes, and the refusal is audited
+  ---
+  duration_ms: 1.015541
+  type: 'test'
+  ...
+# Subtest: live-session: a ready activation is granted and audited
+ok 129 - live-session: a ready activation is granted and audited
+  ---
+  duration_ms: 2.772917
+  type: 'test'
+  ...
+# Subtest: live-session: every submit is refused and audited, even when ready
+ok 130 - live-session: every submit is refused and audited, even when ready
+  ---
+  duration_ms: 0.572625
+  type: 'test'
+  ...
+# Subtest: live-session: the emergency stop disables trading when engaged
+ok 131 - live-session: the emergency stop disables trading when engaged
+  ---
+  duration_ms: 0.530375
+  type: 'test'
+  ...
+# Subtest: live-journal: every LIVE_* event type is accepted by the journal
+ok 132 - live-journal: every LIVE_* event type is accepted by the journal
+  ---
+  duration_ms: 0.111292
+  type: 'test'
+  ...
+# Subtest: CACHE: a validated tick is stored and unknown symbols read as null
+ok 133 - CACHE: a validated tick is stored and unknown symbols read as null
+  ---
+  duration_ms: 1.3155
+  type: 'test'
+  ...
+# Subtest: CACHE: an invalid tick is refused through the domain constructor
+ok 134 - CACHE: an invalid tick is refused through the domain constructor
+  ---
+  duration_ms: 0.655541
+  type: 'test'
+  ...
+# Subtest: CACHE: staleness becomes visible after the threshold
+ok 135 - CACHE: staleness becomes visible after the threshold
+  ---
+  duration_ms: 0.243083
+  type: 'test'
+  ...
+# Subtest: CACHE: an orderbook delta merges into the snapshot
+ok 136 - CACHE: an orderbook delta merges into the snapshot
+  ---
+  duration_ms: 1.840458
+  type: 'test'
+  ...
+# Subtest: CACHE: a duplicate/stale delta is ignored idempotently
+ok 137 - CACHE: a duplicate/stale delta is ignored idempotently
+  ---
+  duration_ms: 0.543709
+  type: 'test'
+  ...
+# Subtest: CACHE: a sequence gap asks for a resync instead of corrupting the book
+ok 138 - CACHE: a sequence gap asks for a resync instead of corrupting the book
+  ---
+  duration_ms: 0.322833
+  type: 'test'
+  ...
+# Subtest: CACHE: a delta without a snapshot cannot be applied
+ok 139 - CACHE: a delta without a snapshot cannot be applied
+  ---
+  duration_ms: 0.172
+  type: 'test'
+  ...
+# Subtest: CACHE: a delta that would cross the book is refused
+ok 140 - CACHE: a delta that would cross the book is refused
+  ---
+  duration_ms: 0.547041
+  type: 'test'
+  ...
+# Subtest: CACHE: trades are validated and stored, and a risk view is derived
+ok 141 - CACHE: trades are validated and stored, and a risk view is derived
+  ---
+  duration_ms: 1.726792
+  type: 'test'
+  ...
+# Subtest: CACHE: symbols, size and clear behave
+ok 142 - CACHE: symbols, size and clear behave
+  ---
+  duration_ms: 0.943167
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a REST ticker row becomes a MarketTick
+ok 143 - NORMALIZE: a REST ticker row becomes a MarketTick
+  ---
+  duration_ms: 1.278875
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a WebSocket ticker uses its own ts and falls back to markPrice
+ok 144 - NORMALIZE: a WebSocket ticker uses its own ts and falls back to markPrice
+  ---
+  duration_ms: 0.441292
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a crossed ticker book is refused as bad data
+ok 145 - NORMALIZE: a crossed ticker book is refused as bad data
+  ---
+  duration_ms: 3.103875
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a ticker without a price or timestamp is refused
+ok 146 - NORMALIZE: a ticker without a price or timestamp is refused
+  ---
+  duration_ms: 0.303458
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a full Bybit book becomes a validated snapshot
+ok 147 - NORMALIZE: a full Bybit book becomes a validated snapshot
+  ---
+  duration_ms: 3.05975
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: an unsorted or crossed book is refused
+ok 148 - NORMALIZE: an unsorted or crossed book is refused
+  ---
+  duration_ms: 0.358833
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a zero size is a delta signal, never a snapshot level
+ok 149 - NORMALIZE: a zero size is a delta signal, never a snapshot level
+  ---
+  duration_ms: 0.2625
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: an orderbook delta allows size 0 (a delete) and carries the update id
+ok 150 - NORMALIZE: an orderbook delta allows size 0 (a delete) and carries the update id
+  ---
+  duration_ms: 0.292833
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: merging a delta updates, deletes and re-sorts each side
+ok 151 - NORMALIZE: merging a delta updates, deletes and re-sorts each side
+  ---
+  duration_ms: 0.659084
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a public trade (WS and REST shapes) is validated
+ok 152 - NORMALIZE: a public trade (WS and REST shapes) is validated
+  ---
+  duration_ms: 0.615458
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a trade with a bad side, price or size is refused
+ok 153 - NORMALIZE: a trade with a bad side, price or size is refused
+  ---
+  duration_ms: 0.307708
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a Bybit kline row becomes a validated candle
+ok 154 - NORMALIZE: a Bybit kline row becomes a validated candle
+  ---
+  duration_ms: 0.190375
+  type: 'test'
+  ...
+# Subtest: NORMALIZE: a malformed kline row or unknown interval is refused
+ok 155 - NORMALIZE: a malformed kline row or unknown interval is refused
+  ---
+  duration_ms: 0.369125
+  type: 'test'
+  ...
+# Subtest: RETRY: the default policy is bounded and explicit
+ok 156 - RETRY: the default policy is bounded and explicit
+  ---
+  duration_ms: 1.755167
+  type: 'test'
+  ...
+# Subtest: RETRY: a partial policy merges onto the default and is validated
+ok 157 - RETRY: a partial policy merges onto the default and is validated
+  ---
+  duration_ms: 0.997417
+  type: 'test'
+  ...
+# Subtest: RETRY: backoff grows exponentially and is capped
+ok 158 - RETRY: backoff grows exponentially and is capped
+  ---
+  duration_ms: 0.210708
+  type: 'test'
+  ...
+# Subtest: RETRY: jitter stays within the configured fraction
+ok 159 - RETRY: jitter stays within the configured fraction
+  ---
+  duration_ms: 0.14175
+  type: 'test'
+  ...
+# Subtest: RETRY: a retryable error is retried and can succeed
+ok 160 - RETRY: a retryable error is retried and can succeed
+  ---
+  duration_ms: 0.706625
+  type: 'test'
+  ...
+# Subtest: RETRY: a non-retryable error is never replayed
+ok 161 - RETRY: a non-retryable error is never replayed
+  ---
+  duration_ms: 0.365084
+  type: 'test'
+  ...
+# Subtest: RETRY: retries stop at the attempt cap and report each retry
+ok 162 - RETRY: retries stop at the attempt cap and report each retry
+  ---
+  duration_ms: 2.714083
+  type: 'test'
+  ...
+# Subtest: RETRY: an unknown error is not retryable
+ok 163 - RETRY: an unknown error is not retryable
+  ---
+  duration_ms: 0.324917
+  type: 'test'
+  ...
+# Subtest: SERVICE: start primes the cache from REST and connects the feed
+ok 164 - SERVICE: start primes the cache from REST and connects the feed
+  ---
+  duration_ms: 4.721541
+  type: 'test'
+  ...
+# Subtest: SERVICE: topics respect the include filters and depth
+ok 165 - SERVICE: topics respect the include filters and depth
+  ---
+  duration_ms: 0.232375
+  type: 'test'
+  ...
+# Subtest: SERVICE: a WebSocket ticker message updates state and is observable
+ok 166 - SERVICE: a WebSocket ticker message updates state and is observable
+  ---
+  duration_ms: 0.461958
+  type: 'test'
+  ...
+# Subtest: SERVICE: a malformed message is refused, counted and recorded
+ok 167 - SERVICE: a malformed message is refused, counted and recorded
+  ---
+  duration_ms: 0.286417
+  type: 'test'
+  ...
+# Subtest: SERVICE: an orderbook snapshot then delta updates the stored book
+ok 168 - SERVICE: an orderbook snapshot then delta updates the stored book
+  ---
+  duration_ms: 0.717166
+  type: 'test'
+  ...
+# Subtest: SERVICE: a sequence gap triggers a REST resync
+ok 169 - SERVICE: a sequence gap triggers a REST resync
+  ---
+  duration_ms: 6.639625
+  type: 'test'
+  ...
+# Subtest: SERVICE: a primitive failure is reported but does not abort start
+ok 170 - SERVICE: a primitive failure is reported but does not abort start
+  ---
+  duration_ms: 0.424792
+  type: 'test'
+  ...
+# Subtest: SERVICE: market data events can be written to the trading journal
+ok 171 - SERVICE: market data events can be written to the trading journal
+  ---
+  duration_ms: 6.021916
+  type: 'test'
+  ...
+# Subtest: MARKET: instrument metadata is taken from the source, never invented
+ok 172 - MARKET: instrument metadata is taken from the source, never invented
+  ---
+  duration_ms: 2.537833
+  type: 'test'
+  ...
+# Subtest: MARKET: a missing tickSize or qtyStep is an error, not a default
+ok 173 - MARKET: a missing tickSize or qtyStep is an error, not a default
+  ---
+  duration_ms: 0.59725
+  type: 'test'
+  ...
+# Subtest: MARKET: a non-positive or malformed step is rejected
+ok 174 - MARKET: a non-positive or malformed step is rejected
+  ---
+  duration_ms: 0.19375
+  type: 'test'
+  ...
+# Subtest: MARKET: maxOrderQty below minOrderQty is rejected as inconsistent
+ok 175 - MARKET: maxOrderQty below minOrderQty is rejected as inconsistent
+  ---
+  duration_ms: 0.11275
+  type: 'test'
+  ...
+# Subtest: MARKET: a valid ticker produces a complete snapshot
+ok 176 - MARKET: a valid ticker produces a complete snapshot
+  ---
+  duration_ms: 0.766083
+  type: 'test'
+  ...
+# Subtest: MARKET: a missing bid stays null rather than being filled from last price
+ok 177 - MARKET: a missing bid stays null rather than being filled from last price
+  ---
+  duration_ms: 0.248708
+  type: 'test'
+  ...
+# Subtest: MARKET: a missing ask stays null
+ok 178 - MARKET: a missing ask stays null
+  ---
+  duration_ms: 0.12075
+  type: 'test'
+  ...
+# Subtest: MARKET: an invalid price is rejected at snapshot creation
+ok 179 - MARKET: an invalid price is rejected at snapshot creation
+  ---
+  duration_ms: 0.31675
+  type: 'test'
+  ...
+# Subtest: MARKET: a crossed book is rejected as corrupt data
+ok 180 - MARKET: a crossed book is rejected as corrupt data
+  ---
+  duration_ms: 0.493333
+  type: 'test'
+  ...
+# Subtest: MARKET: a snapshot without a symbol is rejected
+ok 181 - MARKET: a snapshot without a symbol is rejected
+  ---
+  duration_ms: 0.528667
+  type: 'test'
+  ...
+# Subtest: MARKET: the trigger reference prefers mark price, then last price
+ok 182 - MARKET: the trigger reference prefers mark price, then last price
+  ---
+  duration_ms: 0.217541
+  type: 'test'
+  ...
+# Subtest: MARKET: candles are normalized and validated
+ok 183 - MARKET: candles are normalized and validated
+  ---
+  duration_ms: 0.222959
+  type: 'test'
+  ...
+# Subtest: MARKET: an unknown candle timeframe is rejected
+ok 184 - MARKET: an unknown candle timeframe is rejected
+  ---
+  duration_ms: 0.094208
+  type: 'test'
+  ...
+# Subtest: MARKET: the adapter contract is enforced at construction
+ok 185 - MARKET: the adapter contract is enforced at construction
+  ---
+  duration_ms: 0.303583
+  type: 'test'
+  ...
+# Subtest: PRICE: normalization snaps down to the tick grid
+ok 186 - PRICE: normalization snaps down to the tick grid
+  ---
+  duration_ms: 0.189541
+  type: 'test'
+  ...
+# Subtest: PRICE: a tickSize violation is detected
+ok 187 - PRICE: a tickSize violation is detected
+  ---
+  duration_ms: 0.12525
+  type: 'test'
+  ...
+# Subtest: PRICE: floating-point prices on the grid are not false negatives
+ok 188 - PRICE: floating-point prices on the grid are not false negatives
+  ---
+  duration_ms: 0.058958
+  type: 'test'
+  ...
+# Subtest: PRICE: non-positive and non-finite prices are refused
+ok 189 - PRICE: non-positive and non-finite prices are refused
+  ---
+  duration_ms: 0.061416
+  type: 'test'
+  ...
+# Subtest: QTY: normalization snaps down to the quantity step
+ok 190 - QTY: normalization snaps down to the quantity step
+  ---
+  duration_ms: 0.150667
+  type: 'test'
+  ...
+# Subtest: QTY: a qtyStep violation is detected
+ok 191 - QTY: a qtyStep violation is detected
+  ---
+  duration_ms: 0.072666
+  type: 'test'
+  ...
+# Subtest: QTY: rounding is DOWN, so a size never exceeds what risk approved
+ok 192 - QTY: rounding is DOWN, so a size never exceeds what risk approved
+  ---
+  duration_ms: 0.051875
+  type: 'test'
+  ...
+# Subtest: QTY: a quantity below one step cannot be made representable
+ok 193 - QTY: a quantity below one step cannot be made representable
+  ---
+  duration_ms: 0.112042
+  type: 'test'
+  ...
+# Subtest: QTY: order limits are checked against min and max
+ok 194 - QTY: order limits are checked against min and max
+  ---
+  duration_ms: 0.097417
+  type: 'test'
+  ...
+# Subtest: QTY: the combined normalize-and-validate helper reports the reason
+ok 195 - QTY: the combined normalize-and-validate helper reports the reason
+  ---
+  duration_ms: 0.092875
+  type: 'test'
+  ...
+# Subtest: NOTIONAL: the instrument minimum is enforced
+ok 196 - NOTIONAL: the instrument minimum is enforced
+  ---
+  duration_ms: 0.082
+  type: 'test'
+  ...
+# Subtest: STEP: the decimal-places helper handles real exchange steps
+ok 197 - STEP: the decimal-places helper handles real exchange steps
+  ---
+  duration_ms: 0.091333
+  type: 'test'
+  ...
+# Subtest: LONG: entry fills at the ask and locks margin
+ok 198 - LONG: entry fills at the ask and locks margin
+  ---
+  duration_ms: 44.114625
+  type: 'test'
+  ...
+# Subtest: LONG: unrealized profit and loss are reported deterministically
+ok 199 - LONG: unrealized profit and loss are reported deterministically
+  ---
+  duration_ms: 23.617833
+  type: 'test'
+  ...
+# Subtest: LONG: stop loss closes the position and realizes a loss
+ok 200 - LONG: stop loss closes the position and realizes a loss
+  ---
+  duration_ms: 12.562792
+  type: 'test'
+  ...
+# Subtest: LONG: take profit closes the position and realizes a gain
+ok 201 - LONG: take profit closes the position and realizes a gain
+  ---
+  duration_ms: 21.74025
+  type: 'test'
+  ...
+# Subtest: SHORT: entry fills at the bid
+ok 202 - SHORT: entry fills at the bid
+  ---
+  duration_ms: 9.257959
+  type: 'test'
+  ...
+# Subtest: SHORT: unrealized profit and loss are reported deterministically
+ok 203 - SHORT: unrealized profit and loss are reported deterministically
+  ---
+  duration_ms: 13.791958
+  type: 'test'
+  ...
+# Subtest: SHORT: stop loss closes the position and realizes a loss
+ok 204 - SHORT: stop loss closes the position and realizes a loss
+  ---
+  duration_ms: 6.48075
+  type: 'test'
+  ...
+# Subtest: SHORT: take profit closes the position and realizes a gain
+ok 205 - SHORT: take profit closes the position and realizes a gain
+  ---
+  duration_ms: 10.294208
+  type: 'test'
+  ...
+# Subtest: TRIGGERS: a gap spanning BOTH levels resolves to the STOP, never the target
+ok 206 - TRIGGERS: a gap spanning BOTH levels resolves to the STOP, never the target
+  ---
+  duration_ms: 10.081833
+  type: 'test'
+  ...
+# Subtest: TRIGGERS: a gap spanning only the target resolves to the target
+ok 207 - TRIGGERS: a gap spanning only the target resolves to the target
+  ---
+  duration_ms: 7.181041
+  type: 'test'
+  ...
+# Subtest: TRIGGERS: a move that happened before entry cannot trigger a stop
+ok 208 - TRIGGERS: a move that happened before entry cannot trigger a stop
+  ---
+  duration_ms: 3.664833
+  type: 'test'
+  ...
+# Subtest: FEES: a round trip pays both an entry and an exit fee
+ok 209 - FEES: a round trip pays both an entry and an exit fee
+  ---
+  duration_ms: 5.752375
+  type: 'test'
+  ...
+# Subtest: FEES: a winning trade nets less than the gross move
+ok 210 - FEES: a winning trade nets less than the gross move
+  ---
+  duration_ms: 4.744541
+  type: 'test'
+  ...
+# Subtest: FEES: a zero-fee model leaves the gross move as the realized result
+ok 211 - FEES: a zero-fee model leaves the gross move as the realized result
+  ---
+  duration_ms: 4.668625
+  type: 'test'
+  ...
+# Subtest: EXECUTION: no fill without a bid or ask — no invented price
+ok 212 - EXECUTION: no fill without a bid or ask — no invented price
+  ---
+  duration_ms: 2.432958
+  type: 'test'
+  ...
+# Subtest: EXECUTION: a LONG is refused when only the bid is missing
+ok 213 - EXECUTION: a LONG is refused when only the bid is missing
+  ---
+  duration_ms: 2.509917
+  type: 'test'
+  ...
+# Subtest: EXECUTION: a SHORT is refused when only the ask is missing
+ok 214 - EXECUTION: a SHORT is refused when only the ask is missing
+  ---
+  duration_ms: 2.625458
+  type: 'test'
+  ...
+# Subtest: EXECUTION: the executor refuses an order the Risk Engine did not approve
+ok 215 - EXECUTION: the executor refuses an order the Risk Engine did not approve
+  ---
+  duration_ms: 2.023625
+  type: 'test'
+  ...
+# Subtest: PROTECTION: a second position on the same symbol is refused
+ok 216 - PROTECTION: a second position on the same symbol is refused
+  ---
+  duration_ms: 3.66875
+  type: 'test'
+  ...
+# Subtest: PROTECTION: an opposite position is refused — reversal needs an explicit close
+ok 217 - PROTECTION: an opposite position is refused — reversal needs an explicit close
+  ---
+  duration_ms: 3.882958
+  type: 'test'
+  ...
+# Subtest: PROTECTION: after closing, the same symbol may be traded again the same day
+ok 218 - PROTECTION: after closing, the same symbol may be traded again the same day
+  ---
+  duration_ms: 5.132916
+  type: 'test'
+  ...
+# Subtest: PROTECTION: modifyPositionProtection rejects a level on the wrong side
+ok 219 - PROTECTION: modifyPositionProtection rejects a level on the wrong side
+  ---
+  duration_ms: 7.029625
+  type: 'test'
+  ...
+# Subtest: JOURNAL: events are recorded in the order they actually happened
+ok 220 - JOURNAL: events are recorded in the order they actually happened
+  ---
+  duration_ms: 4.063291
+  type: 'test'
+  ...
+# Subtest: JOURNAL: the full lifecycle of a trade is recorded
+ok 221 - JOURNAL: the full lifecycle of a trade is recorded
+  ---
+  duration_ms: 3.720083
+  type: 'test'
+  ...
+# Subtest: JOURNAL: every event carries the documented fields
+ok 222 - JOURNAL: every event carries the documented fields
+  ---
+  duration_ms: 3.094333
+  type: 'test'
+  ...
+# Subtest: JOURNAL: a rejection is recorded with its reason code
+ok 223 - JOURNAL: a rejection is recorded with its reason code
+  ---
+  duration_ms: 2.198084
+  type: 'test'
+  ...
+# Subtest: JOURNAL: a malformed final line is tolerated, corruption elsewhere is not
+ok 224 - JOURNAL: a malformed final line is tolerated, corruption elsewhere is not
+  ---
+  duration_ms: 5.296041
+  type: 'test'
+  ...
+# Subtest: RECOVERY: equity, positions and daily counters survive a restart
+ok 225 - RECOVERY: equity, positions and daily counters survive a restart
+  ---
+  duration_ms: 4.323542
+  type: 'test'
+  ...
+# Subtest: RECOVERY: a restart does NOT silently reset the account to 340
+ok 226 - RECOVERY: a restart does NOT silently reset the account to 340
+  ---
+  duration_ms: 4.381375
+  type: 'test'
+  ...
+# Subtest: RECOVERY: realized PnL and fees survive a restart
+ok 227 - RECOVERY: realized PnL and fees survive a restart
+  ---
+  duration_ms: 18.963459
+  type: 'test'
+  ...
+# Subtest: RECOVERY: a corrupted state file fails closed and is not overwritten
+ok 228 - RECOVERY: a corrupted state file fails closed and is not overwritten
+  ---
+  duration_ms: 3.859167
+  type: 'test'
+  ...
+# Subtest: RECOVERY: an empty state file fails closed rather than starting fresh
+ok 229 - RECOVERY: an empty state file fails closed rather than starting fresh
+  ---
+  duration_ms: 4.235917
+  type: 'test'
+  ...
+# Subtest: RECOVERY: a state file with a foreign schema version fails closed
+ok 230 - RECOVERY: a state file with a foreign schema version fails closed
+  ---
+  duration_ms: 16.407667
+  type: 'test'
+  ...
+# Subtest: DAILY: the session feeds its counters to the Risk Engine automatically
+ok 231 - DAILY: the session feeds its counters to the Risk Engine automatically
+  ---
+  duration_ms: 8.593083
+  type: 'test'
+  ...
+# Subtest: DAILY: max trades per day is enforced through the session
+ok 232 - DAILY: max trades per day is enforced through the session
+  ---
+  duration_ms: 7.428416
+  type: 'test'
+  ...
+# Subtest: DAILY: max open positions is enforced
+ok 233 - DAILY: max open positions is enforced
+  ---
+  duration_ms: 6.344625
+  type: 'test'
+  ...
+# Subtest: DAILY: the daily loss limit blocks new entries
+ok 234 - DAILY: the daily loss limit blocks new entries
+  ---
+  duration_ms: 5.418125
+  type: 'test'
+  ...
+# Subtest: DAILY: minimum risk/reward is enforced
+ok 235 - DAILY: minimum risk/reward is enforced
+  ---
+  duration_ms: 3.640792
+  type: 'test'
+  ...
+# Subtest: DAILY: an unapproved proposal never reaches the executor
+ok 236 - DAILY: an unapproved proposal never reaches the executor
+  ---
+  duration_ms: 3.145834
+  type: 'test'
+  ...
+# Subtest: STORE: a missing file is reported as fresh, not as an error
+ok 237 - STORE: a missing file is reported as fresh, not as an error
+  ---
+  duration_ms: 14.034375
+  type: 'test'
+  ...
+# Subtest: STORE: a fresh session writes nothing until it trades
+ok 238 - STORE: a fresh session writes nothing until it trades
+  ---
+  duration_ms: 15.927208
+  type: 'test'
+  ...
+# Subtest: STORE: state round-trips through disk unchanged
+ok 239 - STORE: state round-trips through disk unchanged
+  ---
+  duration_ms: 13.120166
+  type: 'test'
+  ...
+# Subtest: STORE: the persisted document carries a schema version
+ok 240 - STORE: the persisted document carries a schema version
+  ---
+  duration_ms: 6.236834
+  type: 'test'
+  ...
+# Subtest: STORE: the write is atomic — no partial file is ever visible
+ok 241 - STORE: the write is atomic — no partial file is ever visible
+  ---
+  duration_ms: 10.305375
+  type: 'test'
+  ...
+# Subtest: STORE: account and daily counters must agree, or the state is rejected
+ok 242 - STORE: account and daily counters must agree, or the state is rejected
+  ---
+  duration_ms: 0.716208
+  type: 'test'
+  ...
+# Subtest: STORE: dailyRealizedPnlUsd must agree between account and daily blocks
+ok 243 - STORE: dailyRealizedPnlUsd must agree between account and daily blocks
+  ---
+  duration_ms: 1.031667
+  type: 'test'
+  ...
+# Subtest: STORE: a non-object state document is rejected
+ok 244 - STORE: a non-object state document is rejected
+  ---
+  duration_ms: 0.228709
+  type: 'test'
+  ...
+# Subtest: STORE: a position with a malformed side is rejected on load
+ok 245 - STORE: a position with a malformed side is rejected on load
+  ---
+  duration_ms: 0.853125
+  type: 'test'
+  ...
+# Subtest: RESET: requires an explicit confirmation flag
+ok 246 - RESET: requires an explicit confirmation flag
+  ---
+  duration_ms: 12.540458
+  type: 'test'
+  ...
+# Subtest: RESET: only an exact boolean true is accepted as confirmation
+ok 247 - RESET: only an exact boolean true is accepted as confirmation
+  ---
+  duration_ms: 18.986208
+  type: 'test'
+  ...
+# Subtest: RESET: a reset account starts fresh at the configured equity
+ok 248 - RESET: a reset account starts fresh at the configured equity
+  ---
+  duration_ms: 29.970291
+  type: 'test'
+  ...
+# Subtest: JOURNAL: events are appended as one JSON object per line
+ok 249 - JOURNAL: events are appended as one JSON object per line
+  ---
+  duration_ms: 8.064125
+  type: 'test'
+  ...
+# Subtest: JOURNAL: an unknown event type is refused
+ok 250 - JOURNAL: an unknown event type is refused
+  ---
+  duration_ms: 3.8925
+  type: 'test'
+  ...
+# Subtest: JOURNAL: openings are append-only and preserve earlier history
+ok 251 - JOURNAL: openings are append-only and preserve earlier history
+  ---
+  duration_ms: 7.011292
+  type: 'test'
+  ...
+# Subtest: JOURNAL: a credential-shaped metadata key is redacted before it hits disk
+ok 252 - JOURNAL: a credential-shaped metadata key is redacted before it hits disk
+  ---
+  duration_ms: 4.599625
+  type: 'test'
+  ...
+# Subtest: JOURNAL: reading a missing journal yields an empty history
+ok 253 - JOURNAL: reading a missing journal yields an empty history
+  ---
+  duration_ms: 0.811458
+  type: 'test'
+  ...
+# Subtest: JOURNAL: the journal is never truncated by normal operation
+ok 254 - JOURNAL: the journal is never truncated by normal operation
+  ---
+  duration_ms: 12.942583
+  type: 'test'
+  ...
+# Subtest: STORE: the facade reports existence and refuses an unconfirmed reset
+ok 255 - STORE: the facade reports existence and refuses an unconfirmed reset
+  ---
+  duration_ms: 3.95175
+  type: 'test'
+  ...
+# Subtest: STORE: a persisted account keeps its fee and PnL totals after reload
+ok 256 - STORE: a persisted account keeps its fee and PnL totals after reload
+  ---
+  duration_ms: 9.101791
+  type: 'test'
+  ...
+# Subtest: FILL MODEL: the default fills the whole requested quantity
+ok 257 - FILL MODEL: the default fills the whole requested quantity
+  ---
+  duration_ms: 1.12875
+  type: 'test'
+  ...
+# Subtest: FILL MODEL: a notional cap fills a step-aligned partial and reports the shortfall
+ok 258 - FILL MODEL: a notional cap fills a step-aligned partial and reports the shortfall
+  ---
+  duration_ms: 0.504584
+  type: 'test'
+  ...
+# Subtest: FILL MODEL: a cap larger than the order does not bind
+ok 259 - FILL MODEL: a cap larger than the order does not bind
+  ---
+  duration_ms: 0.109375
+  type: 'test'
+  ...
+# Subtest: FILL MODEL: a cap below one step fills nothing (no invented micro-order)
+ok 260 - FILL MODEL: a cap below one step fills nothing (no invented micro-order)
+  ---
+  duration_ms: 0.115583
+  type: 'test'
+  ...
+# Subtest: FILL MODEL: bad configuration and untrusted models are refused
+ok 261 - FILL MODEL: bad configuration and untrusted models are refused
+  ---
+  duration_ms: 1.714708
+  type: 'test'
+  ...
+# Subtest: PARTIAL FILL: only the filled quantity becomes a position and the trade costs one slot
+ok 262 - PARTIAL FILL: only the filled quantity becomes a position and the trade costs one slot
+  ---
+  duration_ms: 33.053083
+  type: 'test'
+  ...
+# Subtest: PARTIAL FILL: the journal records the shortfall as a distinct event
+ok 263 - PARTIAL FILL: the journal records the shortfall as a distinct event
+  ---
+  duration_ms: 18.280875
+  type: 'test'
+  ...
+# Subtest: PARTIAL FILL: a cap below the minimum tradable size refuses the whole entry
+ok 264 - PARTIAL FILL: a cap below the minimum tradable size refuses the whole entry
+  ---
+  duration_ms: 14.853541
+  type: 'test'
+  ...
+# Subtest: PARTIAL FILL: a partial never risks more than the approved full size
+ok 265 - PARTIAL FILL: a partial never risks more than the approved full size
+  ---
+  duration_ms: 15.895041
+  type: 'test'
+  ...
+# Subtest: SLIPPAGE: a stop gapped through records an adverse exit slippage
+ok 266 - SLIPPAGE: a stop gapped through records an adverse exit slippage
+  ---
+  duration_ms: 9.070375
+  type: 'test'
+  ...
+# Subtest: SLIPPAGE: a target gapped through records a favourable (negative) slippage
+ok 267 - SLIPPAGE: a target gapped through records a favourable (negative) slippage
+  ---
+  duration_ms: 9.070042
+  type: 'test'
+  ...
+# Subtest: SLIPPAGE: an explicit close price has no slippage
+ok 268 - SLIPPAGE: an explicit close price has no slippage
+  ---
+  duration_ms: 9.061584
+  type: 'test'
+  ...
+# Subtest: PORTFOLIO: the snapshot is a validated domain view of the paper ledger
+ok 269 - PORTFOLIO: the snapshot is a validated domain view of the paper ledger
+  ---
+  duration_ms: 5.076625
+  type: 'test'
+  ...
+# Subtest: PORTFOLIO: the PnL snapshot nets fees out of the realized result
+ok 270 - PORTFOLIO: the PnL snapshot nets fees out of the realized result
+  ---
+  duration_ms: 6.440416
+  type: 'test'
+  ...
+# Subtest: PORTFOLIO: a snapshot refuses a non-positive equity rather than misreporting
+ok 271 - PORTFOLIO: a snapshot refuses a non-positive equity rather than misreporting
+  ---
+  duration_ms: 1.458875
+  type: 'test'
+  ...
+# Subtest: RISK GATE: a rejected proposal never reaches the executor
+ok 272 - RISK GATE: a rejected proposal never reaches the executor
+  ---
+  duration_ms: 3.769208
+  type: 'test'
+  ...
+# Subtest: RISK GATE: the executor refuses a non-approval handed to it directly
+ok 273 - RISK GATE: the executor refuses a non-approval handed to it directly
+  ---
+  duration_ms: 0.420333
+  type: 'test'
+  ...
+# Subtest: DETERMINISM: identical inputs produce identical accounts (including partial fills)
+ok 274 - DETERMINISM: identical inputs produce identical accounts (including partial fills)
+  ---
+  duration_ms: 9.395125
+  type: 'test'
+  ...
+# Subtest: SHORT: a partial fill still settles through a stop with correct PnL sign
+ok 275 - SHORT: a partial fill still settles through a stop with correct PnL sign
+  ---
+  duration_ms: 6.436083
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: starts at the configured equity with nothing open
+ok 276 - ACCOUNT: starts at the configured equity with nothing open
+  ---
+  duration_ms: 2.904833
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: a non-positive starting equity is refused
+ok 277 - ACCOUNT: a non-positive starting equity is refused
+  ---
+  duration_ms: 0.571
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: equity tracks realized PnL minus fees plus unrealized
+ok 278 - ACCOUNT: equity tracks realized PnL minus fees plus unrealized
+  ---
+  duration_ms: 0.497459
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: margin is locked by open positions and subtracted from available balance
+ok 279 - ACCOUNT: margin is locked by open positions and subtracted from available balance
+  ---
+  duration_ms: 0.142666
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: validation refuses duplicate symbols
+ok 280 - ACCOUNT: validation refuses duplicate symbols
+  ---
+  duration_ms: 0.425416
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: validation recomputes derived fields instead of trusting them
+ok 281 - ACCOUNT: validation recomputes derived fields instead of trusting them
+  ---
+  duration_ms: 0.109458
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: the risk-engine projection exposes only what the engine needs
+ok 282 - ACCOUNT: the risk-engine projection exposes only what the engine needs
+  ---
+  duration_ms: 0.366666
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: the high-water mark rises with equity and never falls
+ok 283 - ACCOUNT: the high-water mark rises with equity and never falls
+  ---
+  duration_ms: 0.246416
+  type: 'test'
+  ...
+# Subtest: ACCOUNT: the projection carries per-position notional for exposure caps
+ok 284 - ACCOUNT: the projection carries per-position notional for exposure caps
+  ---
+  duration_ms: 1.016958
+  type: 'test'
+  ...
+# Subtest: POSITION: LONG unrealized PnL = (mark - entry) * qty
+ok 285 - POSITION: LONG unrealized PnL = (mark - entry) * qty
+  ---
+  duration_ms: 0.778
+  type: 'test'
+  ...
+# Subtest: POSITION: SHORT unrealized PnL = (entry - mark) * qty
+ok 286 - POSITION: SHORT unrealized PnL = (entry - mark) * qty
+  ---
+  duration_ms: 0.279208
+  type: 'test'
+  ...
+# Subtest: POSITION: the PnL formula is deterministic and symmetric
+ok 287 - POSITION: the PnL formula is deterministic and symmetric
+  ---
+  duration_ms: 0.163458
+  type: 'test'
+  ...
+# Subtest: POSITION: invalid inputs raise rather than producing a silent zero
+ok 288 - POSITION: invalid inputs raise rather than producing a silent zero
+  ---
+  duration_ms: 0.197125
+  type: 'test'
+  ...
+# Subtest: POSITION: initial margin is notional / leverage
+ok 289 - POSITION: initial margin is notional / leverage
+  ---
+  duration_ms: 0.096917
+  type: 'test'
+  ...
+# Subtest: POSITION: marking to a new price recomputes unrealized PnL
+ok 290 - POSITION: marking to a new price recomputes unrealized PnL
+  ---
+  duration_ms: 0.275833
+  type: 'test'
+  ...
+# Subtest: POSITION: validation rejects a non-positive quantity or price
+ok 291 - POSITION: validation rejects a non-positive quantity or price
+  ---
+  duration_ms: 0.35475
+  type: 'test'
+  ...
+# Subtest: FEES: entry and exit fees are notional * rate
+ok 292 - FEES: entry and exit fees are notional * rate
+  ---
+  duration_ms: 0.211708
+  type: 'test'
+  ...
+# Subtest: FEES: the two rates are independent
+ok 293 - FEES: the two rates are independent
+  ---
+  duration_ms: 0.066375
+  type: 'test'
+  ...
+# Subtest: FEES: a zero model charges nothing
+ok 294 - FEES: a zero model charges nothing
+  ---
+  duration_ms: 0.078416
+  type: 'test'
+  ...
+# Subtest: FEES: a negative rate or malformed model is refused
+ok 295 - FEES: a negative rate or malformed model is refused
+  ---
+  duration_ms: 0.126791
+  type: 'test'
+  ...
+# Subtest: FEES: total cost of a round trip is entry + exit
+ok 296 - FEES: total cost of a round trip is entry + exit
+  ---
+  duration_ms: 0.0725
+  type: 'test'
+  ...
+# Subtest: DAILY: a fresh day starts with zero counters at current equity
+ok 297 - DAILY: a fresh day starts with zero counters at current equity
+  ---
+  duration_ms: 0.144125
+  type: 'test'
+  ...
+# Subtest: DAILY: the day key comes from UTC, never the machine timezone
+ok 298 - DAILY: the day key comes from UTC, never the machine timezone
+  ---
+  duration_ms: 0.072792
+  type: 'test'
+  ...
+# Subtest: DAILY: no rollover when the UTC day is unchanged
+ok 299 - DAILY: no rollover when the UTC day is unchanged
+  ---
+  duration_ms: 0.153125
+  type: 'test'
+  ...
+# Subtest: DAILY: crossing into a new UTC day resets counters and re-bases equity
+ok 300 - DAILY: crossing into a new UTC day resets counters and re-bases equity
+  ---
+  duration_ms: 0.146666
+  type: 'test'
+  ...
+# Subtest: DAILY: recording activity accumulates PnL and optionally counts a trade
+ok 301 - DAILY: recording activity accumulates PnL and optionally counts a trade
+  ---
+  duration_ms: 0.23575
+  type: 'test'
+  ...
+# Subtest: DAILY: a non-finite PnL is refused rather than poisoning the counter
+ok 302 - DAILY: a non-finite PnL is refused rather than poisoning the counter
+  ---
+  duration_ms: 0.224667
+  type: 'test'
+  ...
+# Subtest: DAILY: an unsupported timezone is refused
+ok 303 - DAILY: an unsupported timezone is refused
+  ---
+  duration_ms: 0.1165
+  type: 'test'
+  ...
+# Subtest: ENGINE: a first submission is placed once and confirmed
+ok 304 - ENGINE: a first submission is placed once and confirmed
+  ---
+  duration_ms: 6.169792
+  type: 'test'
+  ...
+# Subtest: ENGINE: the same intent is never placed twice (duplicate prevention)
+ok 305 - ENGINE: the same intent is never placed twice (duplicate prevention)
+  ---
+  duration_ms: 1.094375
+  type: 'test'
+  ...
+# Subtest: ENGINE: keys are deterministic across engines (restart safety)
+ok 306 - ENGINE: keys are deterministic across engines (restart safety)
+  ---
+  duration_ms: 1.429375
+  type: 'test'
+  ...
+# Subtest: ENGINE: an exchange refusal releases the key for a safe retry
+ok 307 - ENGINE: an exchange refusal releases the key for a safe retry
+  ---
+  duration_ms: 0.776334
+  type: 'test'
+  ...
+# Subtest: ENGINE: a timeout that actually placed the order is recovered by clientOrderId
+ok 308 - ENGINE: a timeout that actually placed the order is recovered by clientOrderId
+  ---
+  duration_ms: 0.943875
+  type: 'test'
+  ...
+# Subtest: ENGINE: an ambiguous failure with no trace stays UNKNOWN and blocks a resubmit
+ok 309 - ENGINE: an ambiguous failure with no trace stays UNKNOWN and blocks a resubmit
+  ---
+  duration_ms: 1.102291
+  type: 'test'
+  ...
+# Subtest: ENGINE: an undetermined query after a timeout leaves the order UNKNOWN
+ok 310 - ENGINE: an undetermined query after a timeout leaves the order UNKNOWN
+  ---
+  duration_ms: 1.030167
+  type: 'test'
+  ...
+# Subtest: ENGINE: a partial fill advances the local quantity by the delta
+ok 311 - ENGINE: a partial fill advances the local quantity by the delta
+  ---
+  duration_ms: 1.853916
+  type: 'test'
+  ...
+# Subtest: ENGINE: a filled order on the exchange resolves the local partial fill
+ok 312 - ENGINE: a filled order on the exchange resolves the local partial fill
+  ---
+  duration_ms: 0.869
+  type: 'test'
+  ...
+# Subtest: ENGINE: an exchange regression is a mismatch and disables trading
+ok 313 - ENGINE: an exchange regression is a mismatch and disables trading
+  ---
+  duration_ms: 1.178625
+  type: 'test'
+  ...
+# Subtest: ENGINE: an unknown order state disables trading until resolved
+ok 314 - ENGINE: an unknown order state disables trading until resolved
+  ---
+  duration_ms: 0.514583
+  type: 'test'
+  ...
+# Subtest: ENGINE: a network timeout during reconciliation is undetermined, not success
+ok 315 - ENGINE: a network timeout during reconciliation is undetermined, not success
+  ---
+  duration_ms: 0.458959
+  type: 'test'
+  ...
+# Subtest: IDEMPOTENCY: the same intent always yields the same key
+ok 316 - IDEMPOTENCY: the same intent always yields the same key
+  ---
+  duration_ms: 2.058083
+  type: 'test'
+  ...
+# Subtest: IDEMPOTENCY: distinct intents yield distinct keys
+ok 317 - IDEMPOTENCY: distinct intents yield distinct keys
+  ---
+  duration_ms: 0.404625
+  type: 'test'
+  ...
+# Subtest: IDEMPOTENCY: numeric representation does not change the key
+ok 318 - IDEMPOTENCY: numeric representation does not change the key
+  ---
+  duration_ms: 0.157416
+  type: 'test'
+  ...
+# Subtest: IDEMPOTENCY: keys are rejected unless well formed
+ok 319 - IDEMPOTENCY: keys are rejected unless well formed
+  ---
+  duration_ms: 1.201667
+  type: 'test'
+  ...
+# Subtest: IDEMPOTENCY: client order ids are deterministic and exchange-safe
+ok 320 - IDEMPOTENCY: client order ids are deterministic and exchange-safe
+  ---
+  duration_ms: 0.395959
+  type: 'test'
+  ...
+# Subtest: GUARD: a reserved key blocks a second reservation
+ok 321 - GUARD: a reserved key blocks a second reservation
+  ---
+  duration_ms: 0.444542
+  type: 'test'
+  ...
+# Subtest: GUARD: a provably failed key may be retried; an unknown one may not
+ok 322 - GUARD: a provably failed key may be retried; an unknown one may not
+  ---
+  duration_ms: 1.867708
+  type: 'test'
+  ...
+# Subtest: GUARD: snapshot/restore survives a restart
+ok 323 - GUARD: snapshot/restore survives a restart
+  ---
+  duration_ms: 1.473083
+  type: 'test'
+  ...
+# Subtest: REPLAY: a journal rebuilds reserved, submitted and unknown orders
+ok 324 - REPLAY: a journal rebuilds reserved, submitted and unknown orders
+  ---
+  duration_ms: 3.091833
+  type: 'test'
+  ...
+# Subtest: REPLAY: repeated attempts of one key are flagged as duplicates
+ok 325 - REPLAY: repeated attempts of one key are flagged as duplicates
+  ---
+  duration_ms: 0.980041
+  type: 'test'
+  ...
+# Subtest: REPLAY: terminal orders are not left open
+ok 326 - REPLAY: terminal orders are not left open
+  ---
+  duration_ms: 0.353625
+  type: 'test'
+  ...
+# Subtest: REPLAY: the guard is rebuilt from the journal and still blocks
+ok 327 - REPLAY: the guard is rebuilt from the journal and still blocks
+  ---
+  duration_ms: 0.496708
+  type: 'test'
+  ...
+# Subtest: STARTUP: all orders agree -> trading enabled
+ok 328 - STARTUP: all orders agree -> trading enabled
+  ---
+  duration_ms: 1.411291
+  type: 'test'
+  ...
+# Subtest: STARTUP: an order the exchange cannot confirm disables trading
+ok 329 - STARTUP: an order the exchange cannot confirm disables trading
+  ---
+  duration_ms: 0.386458
+  type: 'test'
+  ...
+# Subtest: STARTUP: a transport failure while fetching state disables trading
+ok 330 - STARTUP: a transport failure while fetching state disables trading
+  ---
+  duration_ms: 1.24175
+  type: 'test'
+  ...
+# Subtest: RECOVERY SESSION: trades are gated on a successful reconciliation
+ok 331 - RECOVERY SESSION: trades are gated on a successful reconciliation
+  ---
+  duration_ms: 0.613667
+  type: 'test'
+  ...
+# Subtest: TEST 1: valid LONG proposal is approved
+ok 332 - TEST 1: valid LONG proposal is approved
+  ---
+  duration_ms: 4.276709
+  type: 'test'
+  ...
+# Subtest: TEST 2: valid SHORT proposal is approved
+ok 333 - TEST 2: valid SHORT proposal is approved
+  ---
+  duration_ms: 0.36875
+  type: 'test'
+  ...
+# Subtest: TEST 3: LONG with stopLoss above entry is rejected
+ok 334 - TEST 3: LONG with stopLoss above entry is rejected
+  ---
+  duration_ms: 0.567917
+  type: 'test'
+  ...
+# Subtest: TEST 4: SHORT with stopLoss below entry is rejected
+ok 335 - TEST 4: SHORT with stopLoss below entry is rejected
+  ---
+  duration_ms: 0.232625
+  type: 'test'
+  ...
+# Subtest: TEST 5: take profit on the wrong side is rejected
+ok 336 - TEST 5: take profit on the wrong side is rejected
+  ---
+  duration_ms: 0.411833
+  type: 'test'
+  ...
+# Subtest: TEST 6: risk/reward below 1.5 is rejected
+ok 337 - TEST 6: risk/reward below 1.5 is rejected
+  ---
+  duration_ms: 0.20725
+  type: 'test'
+  ...
+# Subtest: TEST 6b: risk/reward exactly at the minimum is approved (boundary)
+ok 338 - TEST 6b: risk/reward exactly at the minimum is approved (boundary)
+  ---
+  duration_ms: 0.614833
+  type: 'test'
+  ...
+# Subtest: TEST 7: position size is capped by max leverage so realised risk stays within budget
+ok 339 - TEST 7: position size is capped by max leverage so realised risk stays within budget
+  ---
+  duration_ms: 1.001334
+  type: 'test'
+  ...
+# Subtest: TEST 7b: per-trade risk budget is derived from equity, not hard-coded
+ok 340 - TEST 7b: per-trade risk budget is derived from equity, not hard-coded
+  ---
+  duration_ms: 0.95475
+  type: 'test'
+  ...
+# Subtest: TEST 8: daily loss limit reached rejects new trades
+ok 341 - TEST 8: daily loss limit reached rejects new trades
+  ---
+  duration_ms: 0.872916
+  type: 'test'
+  ...
+# Subtest: TEST 8b: daily loss just inside the limit still trades
+ok 342 - TEST 8b: daily loss just inside the limit still trades
+  ---
+  duration_ms: 0.31075
+  type: 'test'
+  ...
+# Subtest: TEST 8c: profit does not raise the daily loss allowance
+ok 343 - TEST 8c: profit does not raise the daily loss allowance
+  ---
+  duration_ms: 1.139459
+  type: 'test'
+  ...
+# Subtest: TEST 9: max open positions reached rejects new trades
+ok 344 - TEST 9: max open positions reached rejects new trades
+  ---
+  duration_ms: 0.337416
+  type: 'test'
+  ...
+# Subtest: TEST 10: max trades per day reached rejects new trades
+ok 345 - TEST 10: max trades per day reached rejects new trades
+  ---
+  duration_ms: 0.189625
+  type: 'test'
+  ...
+# Subtest: TEST 11: effective leverage may never exceed the configured maximum
+ok 346 - TEST 11: effective leverage may never exceed the configured maximum
+  ---
+  duration_ms: 0.605417
+  type: 'test'
+  ...
+# Subtest: TEST 12: confidence 0.99 does not increase position size
+ok 347 - TEST 12: confidence 0.99 does not increase position size
+  ---
+  duration_ms: 0.211583
+  type: 'test'
+  ...
+# Subtest: TEST 13: confidence 0.51 does not weaken or tighten the risk limit
+ok 348 - TEST 13: confidence 0.51 does not weaken or tighten the risk limit
+  ---
+  duration_ms: 1.273583
+  type: 'test'
+  ...
+# Subtest: TEST 13b: confidence 0.0 is still evaluated purely on risk
+ok 349 - TEST 13b: confidence 0.0 is still evaluated purely on risk
+  ---
+  duration_ms: 0.10075
+  type: 'test'
+  ...
+# Subtest: TEST 14: the paper execution path makes no exchange request of its own
+ok 350 - TEST 14: the paper execution path makes no exchange request of its own
+  ---
+  duration_ms: 25.709917
+  type: 'test'
+  ...
+# Subtest: TEST 14b: the paper executor refuses to execute a rejected proposal
+ok 351 - TEST 14b: the paper executor refuses to execute a rejected proposal
+  ---
+  duration_ms: 3.826334
+  type: 'test'
+  ...
+# Subtest: TEST 15: an invalid TRADING_MODE fails configuration loading
+ok 352 - TEST 15: an invalid TRADING_MODE fails configuration loading
+  ---
+  duration_ms: 0.563167
+  type: 'test'
+  ...
+# Subtest: TEST 15b: TRADING_MODE defaults to PAPER when unset
+ok 353 - TEST 15b: TRADING_MODE defaults to PAPER when unset
+  ---
+  duration_ms: 0.513583
+  type: 'test'
+  ...
+# Subtest: TEST 15c: LIVE without an explicit opt-in is refused
+ok 354 - TEST 15c: LIVE without an explicit opt-in is refused
+  ---
+  duration_ms: 0.093084
+  type: 'test'
+  ...
+# Subtest: TEST 15d: LIVE with the opt-in is still refused in Stage 1
+ok 355 - TEST 15d: LIVE with the opt-in is still refused in Stage 1
+  ---
+  duration_ms: 0.082792
+  type: 'test'
+  ...
+# Subtest: TEST 15e: malformed risk limits are rejected
+ok 356 - TEST 15e: malformed risk limits are rejected
+  ---
+  duration_ms: 0.258166
+  type: 'test'
+  ...
+# Subtest: TEST 15f: risk per trade above the daily loss limit is refused as incoherent
+ok 357 - TEST 15f: risk per trade above the daily loss limit is refused as incoherent
+  ---
+  duration_ms: 0.244166
+  type: 'test'
+  ...
+# Subtest: TEST 15g: the trading core ignores credentials entirely
+ok 358 - TEST 15g: the trading core ignores credentials entirely
+  ---
+  duration_ms: 0.203125
+  type: 'test'
+  ...
+# Subtest: EDGE: a proposal missing a stop loss is rejected when SL is required
+ok 359 - EDGE: a proposal missing a stop loss is rejected when SL is required
+  ---
+  duration_ms: 0.200291
+  type: 'test'
+  ...
+# Subtest: EDGE: a stop loss at exactly the entry price is rejected
+ok 360 - EDGE: a stop loss at exactly the entry price is rejected
+  ---
+  duration_ms: 0.175167
+  type: 'test'
+  ...
+# Subtest: EDGE: a duplicate proposal for an already-open symbol is rejected
+ok 361 - EDGE: a duplicate proposal for an already-open symbol is rejected
+  ---
+  duration_ms: 0.180083
+  type: 'test'
+  ...
+# Subtest: EDGE: an opposing position on the same symbol is rejected
+ok 362 - EDGE: an opposing position on the same symbol is rejected
+  ---
+  duration_ms: 0.117041
+  type: 'test'
+  ...
+# Subtest: EDGE: re-trading a flat symbol later the same day is allowed (Stage 2 removed the day-wide symbol ban)
+ok 363 - EDGE: re-trading a flat symbol later the same day is allowed (Stage 2 removed the day-wide symbol ban)
+  ---
+  duration_ms: 0.173416
+  type: 'test'
+  ...
+# Subtest: EDGE: zero or negative equity is rejected rather than sized
+ok 364 - EDGE: zero or negative equity is rejected rather than sized
+  ---
+  duration_ms: 0.20975
+  type: 'test'
+  ...
+# Subtest: EDGE: insufficient available balance is rejected
+ok 365 - EDGE: insufficient available balance is rejected
+  ---
+  duration_ms: 0.353291
+  type: 'test'
+  ...
+# Subtest: EDGE: an entry far from the mark price is rejected as stale
+ok 366 - EDGE: an entry far from the mark price is rejected as stale
+  ---
+  duration_ms: 0.266084
+  type: 'test'
+  ...
+# Subtest: EDGE: instrument minimum notional blocks a dust position
+ok 367 - EDGE: instrument minimum notional blocks a dust position
+  ---
+  duration_ms: 0.377375
+  type: 'test'
+  ...
+# Subtest: EDGE: unknown proposal fields are rejected, not ignored
+ok 368 - EDGE: unknown proposal fields are rejected, not ignored
+  ---
+  duration_ms: 0.7075
+  type: 'test'
+  ...
+# Subtest: EDGE: an invalid side is rejected
+ok 369 - EDGE: an invalid side is rejected
+  ---
+  duration_ms: 0.140416
+  type: 'test'
+  ...
+# Subtest: EDGE: confidence outside [0,1] is rejected
+ok 370 - EDGE: confidence outside [0,1] is rejected
+  ---
+  duration_ms: 0.144083
+  type: 'test'
+  ...
+# Subtest: EDGE: evaluation is deterministic across repeated calls
+ok 371 - EDGE: evaluation is deterministic across repeated calls
+  ---
+  duration_ms: 1.22675
+  type: 'test'
+  ...
+# Subtest: EDGE: evaluateTrade does not mutate its inputs
+ok 372 - EDGE: evaluateTrade does not mutate its inputs
+  ---
+  duration_ms: 0.131916
+  type: 'test'
+  ...
+# Subtest: EDGE: fail-closed on a null or malformed input
+ok 373 - EDGE: fail-closed on a null or malformed input
+  ---
+  duration_ms: 0.117833
+  type: 'test'
+  ...
+# Subtest: EDGE: fail-closed when an invalid risk config is injected
+ok 374 - EDGE: fail-closed when an invalid risk config is injected
+  ---
+  duration_ms: 0.137459
+  type: 'test'
+  ...
+# Subtest: EDGE: a throwing proposal object is turned into a rejection, never an approval
+ok 375 - EDGE: a throwing proposal object is turned into a rejection, never an approval
+  ---
+  duration_ms: 0.105375
+  type: 'test'
+  ...
+# Subtest: EDGE: SHORT geometry sizes identically to a mirrored LONG
+ok 376 - EDGE: SHORT geometry sizes identically to a mirrored LONG
+  ---
+  duration_ms: 0.174708
+  type: 'test'
+  ...
+# Subtest: EDGE: rejection results always carry a reason code and a message
+ok 377 - EDGE: rejection results always carry a reason code and a message
+  ---
+  duration_ms: 0.458208
+  type: 'test'
+  ...
+# Subtest: EXPOSURE: a per-symbol cap shrinks the position instead of breaching it
+ok 378 - EXPOSURE: a per-symbol cap shrinks the position instead of breaching it
+  ---
+  duration_ms: 6.571417
+  type: 'test'
+  ...
+# Subtest: EXPOSURE: a symbol cap that leaves less than the minimum notional is refused
+ok 379 - EXPOSURE: a symbol cap that leaves less than the minimum notional is refused
+  ---
+  duration_ms: 1.097917
+  type: 'test'
+  ...
+# Subtest: EXPOSURE: the per-symbol cap is independent of the leverage cap
+ok 380 - EXPOSURE: the per-symbol cap is independent of the leverage cap
+  ---
+  duration_ms: 0.232334
+  type: 'test'
+  ...
+# Subtest: EXPOSURE: total exposure at the cap refuses a new position outright
+ok 381 - EXPOSURE: total exposure at the cap refuses a new position outright
+  ---
+  duration_ms: 0.85175
+  type: 'test'
+  ...
+# Subtest: EXPOSURE: existing exposure consumes headroom and shrinks the new position
+ok 382 - EXPOSURE: existing exposure consumes headroom and shrinks the new position
+  ---
+  duration_ms: 1.067167
+  type: 'test'
+  ...
+# Subtest: EXPOSURE: a position without an explicit notional falls back to quantity * entryPrice
+ok 383 - EXPOSURE: a position without an explicit notional falls back to quantity * entryPrice
+  ---
+  duration_ms: 0.244042
+  type: 'test'
+  ...
+# Subtest: EXPOSURE: a position with no notional fields contributes nothing
+ok 384 - EXPOSURE: a position with no notional fields contributes nothing
+  ---
+  duration_ms: 1.048083
+  type: 'test'
+  ...
+# Subtest: DRAWDOWN: a breach at the limit refuses new trades
+ok 385 - DRAWDOWN: a breach at the limit refuses new trades
+  ---
+  duration_ms: 0.530542
+  type: 'test'
+  ...
+# Subtest: DRAWDOWN: just inside the limit still trades
+ok 386 - DRAWDOWN: just inside the limit still trades
+  ---
+  duration_ms: 1.426958
+  type: 'test'
+  ...
+# Subtest: DRAWDOWN: a profit above the previous peak resets the measure to zero
+ok 387 - DRAWDOWN: a profit above the previous peak resets the measure to zero
+  ---
+  duration_ms: 2.424958
+  type: 'test'
+  ...
+# Subtest: DRAWDOWN: a missing peak defaults to current equity (no unknown drawdown)
+ok 388 - DRAWDOWN: a missing peak defaults to current equity (no unknown drawdown)
+  ---
+  duration_ms: 0.452667
+  type: 'test'
+  ...
+# Subtest: DRAWDOWN: a malformed peak fails closed as an invalid account
+ok 389 - DRAWDOWN: a malformed peak fails closed as an invalid account
+  ---
+  duration_ms: 0.599833
+  type: 'test'
+  ...
+# Subtest: DRAWDOWN: the daily loss limit is the tighter, first gate
+ok 390 - DRAWDOWN: the daily loss limit is the tighter, first gate
+  ---
+  duration_ms: 0.150667
+  type: 'test'
+  ...
+# Subtest: KILL SWITCH: an explicit engaged flag refuses the proposal
+ok 391 - KILL SWITCH: an explicit engaged flag refuses the proposal
+  ---
+  duration_ms: 0.235542
+  type: 'test'
+  ...
+# Subtest: KILL SWITCH: an explicit released flag leaves the gate open
+ok 392 - KILL SWITCH: an explicit released flag leaves the gate open
+  ---
+  duration_ms: 0.121709
+  type: 'test'
+  ...
+# Subtest: KILL SWITCH: an omitted flag leaves the gate open
+ok 393 - KILL SWITCH: an omitted flag leaves the gate open
+  ---
+  duration_ms: 0.085291
+  type: 'test'
+  ...
+# Subtest: KILL SWITCH: a malformed flag fails closed
+ok 394 - KILL SWITCH: a malformed flag fails closed
+  ---
+  duration_ms: 2.220625
+  type: 'test'
+  ...
+# Subtest: KILL SWITCH: the static config flag is not released by the runtime flag
+ok 395 - KILL SWITCH: the static config flag is not released by the runtime flag
+  ---
+  duration_ms: 0.234292
+  type: 'test'
+  ...
+# Subtest: KILL SWITCH: isRuntimeKillSwitchEngaged is fail-closed
+ok 396 - KILL SWITCH: isRuntimeKillSwitchEngaged is fail-closed
+  ---
+  duration_ms: 0.111292
+  type: 'test'
+  ...
+# Subtest: ENGINE: a bound kill switch gates evaluation and releases deterministically
+ok 397 - ENGINE: a bound kill switch gates evaluation and releases deterministically
+  ---
+  duration_ms: 0.793459
+  type: 'test'
+  ...
+# Subtest: ENGINE: an invalid injected kill switch is refused at construction
+ok 398 - ENGINE: an invalid injected kill switch is refused at construction
+  ---
+  duration_ms: 0.566
+  type: 'test'
+  ...
+# Subtest: ENGINE: every decision reaches the decision sink, approvals and rejections alike
+ok 399 - ENGINE: every decision reaches the decision sink, approvals and rejections alike
+  ---
+  duration_ms: 0.680417
+  type: 'test'
+  ...
+# Subtest: ENGINE: a throwing decision sink cannot suppress or crash a decision
+ok 400 - ENGINE: a throwing decision sink cannot suppress or crash a decision
+  ---
+  duration_ms: 0.621166
+  type: 'test'
+  ...
+# Subtest: ENGINE: the bound config is frozen and cannot be widened by an evaluation
+ok 401 - ENGINE: the bound config is frozen and cannot be widened by an evaluation
+  ---
+  duration_ms: 0.290875
+  type: 'test'
+  ...
+# Subtest: CONFIG: a symbol exposure cap above the total cap is incoherent
+ok 402 - CONFIG: a symbol exposure cap above the total cap is incoherent
+  ---
+  duration_ms: 0.268
+  type: 'test'
+  ...
+# Subtest: CONFIG: a drawdown at or below the daily loss is incoherent
+ok 403 - CONFIG: a drawdown at or below the daily loss is incoherent
+  ---
+  duration_ms: 0.441208
+  type: 'test'
+  ...
+# Subtest: CONFIG: the new limits are present and finite in the default profile
+ok 404 - CONFIG: the new limits are present and finite in the default profile
+  ---
+  duration_ms: 0.166958
+  type: 'test'
+  ...
+# Subtest: PURITY: exposure and drawdown decisions are deterministic
+ok 405 - PURITY: exposure and drawdown decisions are deterministic
+  ---
+  duration_ms: 0.736791
+  type: 'test'
+  ...
+# Subtest: PURITY: exposure and drawdown evaluation does not mutate its inputs
+ok 406 - PURITY: exposure and drawdown evaluation does not mutate its inputs
+  ---
+  duration_ms: 0.131958
+  type: 'test'
+  ...
+# Subtest: SECURITY: the risk layer imports no HTTP, exchange, MCP or AI modules
+ok 407 - SECURITY: the risk layer imports no HTTP, exchange, MCP or AI modules
+  ---
+  duration_ms: 2.24125
+  type: 'test'
+  ...
+# Subtest: SECURITY: the risk layer performs no network or process side effects
+ok 408 - SECURITY: the risk layer performs no network or process side effects
+  ---
+  duration_ms: 0.555792
+  type: 'test'
+  ...
+# Subtest: SECURITY: the risk layer has no write capability at all
+ok 409 - SECURITY: the risk layer has no write capability at all
+  ---
+  duration_ms: 0.384458
+  type: 'test'
+  ...
+# Subtest: SECURITY: no src module imports the operational scripts
+ok 410 - SECURITY: no src module imports the operational scripts
+  ---
+  duration_ms: 18.790375
+  type: 'test'
+  ...
+# Subtest: SECURITY: no src module references transfer, withdrawal or deposit endpoints
+ok 411 - SECURITY: no src module references transfer, withdrawal or deposit endpoints
+  ---
+  duration_ms: 19.321083
+  type: 'test'
+  ...
+# Subtest: SECURITY: the core never calls Bybit trading endpoints
+ok 412 - SECURITY: the core never calls Bybit trading endpoints
+  ---
+  duration_ms: 7.834166
+  type: 'test'
+  ...
+# Subtest: SECURITY: authenticated order endpoints exist only inside the testnet layer
+ok 413 - SECURITY: authenticated order endpoints exist only inside the testnet layer
+  ---
+  duration_ms: 12.727125
+  type: 'test'
+  ...
+# Subtest: SECURITY: the core has no Bybit client dependency
+ok 414 - SECURITY: the core has no Bybit client dependency
+  ---
+  duration_ms: 16.076125
+  type: 'test'
+  ...
+# Subtest: SECURITY: live execution is disabled by construction
+ok 415 - SECURITY: live execution is disabled by construction
+  ---
+  duration_ms: 5.849458
+  type: 'test'
+  ...
+# Subtest: SECURITY: the logger redacts secret-looking fields
+ok 416 - SECURITY: the logger redacts secret-looking fields
+  ---
+  duration_ms: 3.672333
+  type: 'test'
+  ...
+# Subtest: SECURITY: config description never contains secret material
+ok 417 - SECURITY: config description never contains secret material
+  ---
+  duration_ms: 1.929458
+  type: 'test'
+  ...
+# Subtest: SECURITY: the trading core does not read BYBIT_API_KEY / BYBIT_API_SECRET at all
+ok 418 - SECURITY: the trading core does not read BYBIT_API_KEY / BYBIT_API_SECRET at all
+  ---
+  duration_ms: 6.629916
+  type: 'test'
+  ...
+# Subtest: SECURITY: loadConfig loads without any credentials in the environment
+ok 419 - SECURITY: loadConfig loads without any credentials in the environment
+  ---
+  duration_ms: 0.972125
+  type: 'test'
+  ...
+# Subtest: SECURITY: only the config layer reads process.env
+ok 420 - SECURITY: only the config layer reads process.env
+  ---
+  duration_ms: 8.543084
+  type: 'test'
+  ...
+# Subtest: SECURITY: only the storage layer writes files, and never inside the trading core
+ok 421 - SECURITY: only the storage layer writes files, and never inside the trading core
+  ---
+  duration_ms: 14.296875
+  type: 'test'
+  ...
+# Subtest: SECURITY: the paper execution layer cannot import a Bybit write client
+ok 422 - SECURITY: the paper execution layer cannot import a Bybit write client
+  ---
+  duration_ms: 2.452708
+  type: 'test'
+  ...
+# Subtest: SECURITY: the market layer holds no credentials and only reads
+ok 423 - SECURITY: the market layer holds no credentials and only reads
+  ---
+  duration_ms: 1.312708
+  type: 'test'
+  ...
+# Subtest: SECURITY: no module on the trading path reaches an AI provider
+ok 424 - SECURITY: no module on the trading path reaches an AI provider
+  ---
+  duration_ms: 27.078167
+  type: 'test'
+  ...
+# Subtest: SECURITY: the module inventory is exactly what Stage 2 intends
+ok 425 - SECURITY: the module inventory is exactly what Stage 2 intends
+  ---
+  duration_ms: 1.275333
+  type: 'test'
+  ...
+# Subtest: SECURITY: every documented env variable is actually read by the config layer
+ok 426 - SECURITY: every documented env variable is actually read by the config layer
+  ---
+  duration_ms: 1.241916
+  type: 'test'
+  ...
+# Subtest: SECURITY: only the live config module names the live credential variables
+ok 427 - SECURITY: only the live config module names the live credential variables
+  ---
+  duration_ms: 6.978541
+  type: 'test'
+  ...
+# Subtest: SECURITY: no non-live module imports the live boundary
+ok 428 - SECURITY: no non-live module imports the live boundary
+  ---
+  duration_ms: 13.35075
+  type: 'test'
+  ...
+# Subtest: SECURITY: the session barrel does not re-export the live session
+ok 429 - SECURITY: the session barrel does not re-export the live session
+  ---
+  duration_ms: 0.1325
+  type: 'test'
+  ...
+# Subtest: SECURITY: paper and backtest code paths carry no live gate state
+ok 430 - SECURITY: paper and backtest code paths carry no live gate state
+  ---
+  duration_ms: 2.3955
+  type: 'test'
+  ...
+# Subtest: strategy: registry rejects duplicates and unknown ids
+ok 431 - strategy: registry rejects duplicates and unknown ids
+  ---
+  duration_ms: 2.6835
+  type: 'test'
+  ...
+# Subtest: strategy: a flat market produces no signal
+ok 432 - strategy: a flat market produces no signal
+  ---
+  duration_ms: 2.299
+  type: 'test'
+  ...
+# Subtest: strategy: an MA cross emits a deterministic LONG proposal with 2R geometry
+ok 433 - strategy: an MA cross emits a deterministic LONG proposal with 2R geometry
+  ---
+  duration_ms: 0.608042
+  type: 'test'
+  ...
+# Subtest: strategy: the session runs a registry strategy end to end
+ok 434 - strategy: the session runs a registry strategy end to end
+  ---
+  duration_ms: 25.849541
+  type: 'test'
+  ...
+# Subtest: strategy: a no-signal market submits nothing
+ok 435 - strategy: a no-signal market submits nothing
+  ---
+  duration_ms: 8.387667
+  type: 'test'
+  ...
+# Subtest: strategy: a risk-rejected proposal never executes
+ok 436 - strategy: a risk-rejected proposal never executes
+  ---
+  duration_ms: 13.345917
+  type: 'test'
+  ...
+# Subtest: strategy: the default registry exposes the built-in MA strategy
+ok 437 - strategy: the default registry exposes the built-in MA strategy
+  ---
+  duration_ms: 0.370416
+  type: 'test'
+  ...
+# Subtest: strategy: an emitted decision is journalled
+ok 438 - strategy: an emitted decision is journalled
+  ---
+  duration_ms: 9.548
+  type: 'test'
+  ...
+# Subtest: strategy: a no-signal decision is journalled, not silently dropped
+ok 439 - strategy: a no-signal decision is journalled, not silently dropped
+  ---
+  duration_ms: 4.834583
+  type: 'test'
+  ...
+# Subtest: strategy: the runtime kill switch blocks an emitted proposal, then releases
+ok 440 - strategy: the runtime kill switch blocks an emitted proposal, then releases
+  ---
+  duration_ms: 9.733209
+  type: 'test'
+  ...
+# Subtest: strategy: a config-level kill switch blocks even without a runtime engage
+ok 441 - strategy: a config-level kill switch blocks even without a runtime engage
+  ---
+  duration_ms: 5.573167
+  type: 'test'
+  ...
+# Subtest: strategy: a throwing strategy fails closed and is audited
+ok 442 - strategy: a throwing strategy fails closed and is audited
+  ---
+  duration_ms: 3.109833
+  type: 'test'
+  ...
+# Subtest: strategy: sizing is owned by the Risk Engine, never the strategy
+ok 443 - strategy: sizing is owned by the Risk Engine, never the strategy
+  ---
+  duration_ms: 11.933167
+  type: 'test'
+  ...
+# Subtest: precheckIdea: stopDist < 1.5x avgRange14h fails
+ok 444 - precheckIdea: stopDist < 1.5x avgRange14h fails
+  ---
+  duration_ms: 1.065334
+  type: 'test'
+  ...
+# Subtest: precheckIdea: reward/risk 1.2 fails; 1.5 passes
+ok 445 - precheckIdea: reward/risk 1.2 fails; 1.5 passes
+  ---
+  duration_ms: 0.161708
+  type: 'test'
+  ...
+# Subtest: precheckIdea: LONG entry +9% above low24h fails; +7% passes
+ok 446 - precheckIdea: LONG entry +9% above low24h fails; +7% passes
+  ---
+  duration_ms: 0.212458
+  type: 'test'
+  ...
+# Subtest: precheckIdea: alt LONG against btc.bias=down fails; flat passes; BTC skips
+ok 447 - precheckIdea: alt LONG against btc.bias=down fails; flat passes; BTC skips
+  ---
+  duration_ms: 0.1325
+  type: 'test'
+  ...
+# Subtest: precheckIdea: missing avgRange14h skips stop width check
+ok 448 - precheckIdea: missing avgRange14h skips stop width check
+  ---
+  duration_ms: 0.256875
+  type: 'test'
+  ...
+# Subtest: precheckIdea: symbol outside context fails
+ok 449 - precheckIdea: symbol outside context fails
+  ---
+  duration_ms: 0.092833
+  type: 'test'
+  ...
+# Subtest: computeBtcBlock: 30 growing closes => bias=up; falling => down; saw => flat; <22 => null
+ok 450 - computeBtcBlock: 30 growing closes => bias=up; falling => down; saw => flat; <22 => null
+  ---
+  duration_ms: 0.41425
+  type: 'test'
+  ...
+# Subtest: emaLast: length < period => null; constant row == constant
+ok 451 - emaLast: length < period => null; constant row == constant
+  ---
+  duration_ms: 0.071167
+  type: 'test'
+  ...
+# Subtest: G-4: formatSentiment includes fearGreed when provided
+ok 452 - G-4: formatSentiment includes fearGreed when provided
+  ---
+  duration_ms: 0.492416
+  type: 'test'
+  ...
+# Subtest: G-5: buildGuardPrompt version is risk-guard-v2 with expected payload keys
+not ok 453 - G-5: buildGuardPrompt version is risk-guard-v2 with expected payload keys
+  ---
+  duration_ms: 0.558208
+  type: 'test'
+  location: '/Users/konstantinsergeev/.hermes/profiles/developer/cache/scratch/baseline-wt2/test/telegram-guard.test.mjs:124:1'
+  failureType: 'testCodeFailure'
+  error: `Unexpected token 'S', "SHARED CON"... is not valid JSON`
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    JSON.parse (<anonymous>)
+    TestContext.<anonymous> (file:///Users/konstantinsergeev/.hermes/profiles/developer/cache/scratch/baseline-wt2/test/telegram-guard.test.mjs:128:23)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: G-5: guard prompt does not contain "widen the stop"
+ok 454 - G-5: guard prompt does not contain "widen the stop"
+  ---
+  duration_ms: 0.187791
+  type: 'test'
+  ...
+# Subtest: G-6: parseGuardResponse enforces 1..5 reasons and length <= 800
+ok 455 - G-6: parseGuardResponse enforces 1..5 reasons and length <= 800
+  ---
+  duration_ms: 0.20225
+  type: 'test'
+  ...
+# Subtest: G-6: contextForIdea returns only target symbol snapshot + btc
+ok 456 - G-6: contextForIdea returns only target symbol snapshot + btc
+  ---
+  duration_ms: 0.089583
+  type: 'test'
+  ...
+# Subtest: shouldSkipAutoEntry: drift > refreshPct skips
+ok 457 - shouldSkipAutoEntry: drift > refreshPct skips
+  ---
+  duration_ms: 0.102917
+  type: 'test'
+  ...
+# Subtest: shouldSkipAutoEntry: live beyond SL/TP skips
+ok 458 - shouldSkipAutoEntry: live beyond SL/TP skips
+  ---
+  duration_ms: 0.064625
+  type: 'test'
+  ...
+# Subtest: shouldSkipAutoEntry: drift within tolerance and SL < live < TP passes
+ok 459 - shouldSkipAutoEntry: drift within tolerance and SL < live < TP passes
+  ---
+  duration_ms: 0.062542
+  type: 'test'
+  ...
+# Subtest: G-8: validateIdeasWithMarket rejects symbol in openPositions
+ok 460 - G-8: validateIdeasWithMarket rejects symbol in openPositions
+  ---
+  duration_ms: 0.476209
+  type: 'test'
+  ...
+# Subtest: parseScoutResponse: valid idea passes (regression)
+ok 461 - parseScoutResponse: valid idea passes (regression)
+  ---
+  duration_ms: 2.25975
+  type: 'test'
+  ...
+# Subtest: S-3: R/R = 1.49 rejects
+ok 462 - S-3: R/R = 1.49 rejects
+  ---
+  duration_ms: 0.316375
+  type: 'test'
+  ...
+# Subtest: S-3: R/R = 1.50 passes
+ok 463 - S-3: R/R = 1.50 passes
+  ---
+  duration_ms: 0.11625
+  type: 'test'
+  ...
+# Subtest: S-1: unknown symbol rejects
+ok 464 - S-1: unknown symbol rejects
+  ---
+  duration_ms: 0.247417
+  type: 'test'
+  ...
+# Subtest: S-1: known symbol passes
+ok 465 - S-1: known symbol passes
+  ---
+  duration_ms: 0.2035
+  type: 'test'
+  ...
+# Subtest: S-1: entry +3% rejects; +1% passes
+ok 466 - S-1: entry +3% rejects; +1% passes
+  ---
+  duration_ms: 0.13625
+  type: 'test'
+  ...
+# Subtest: S-1: stopDist < 1.5x avgRange14h rejects; == passes
+ok 467 - S-1: stopDist < 1.5x avgRange14h rejects; == passes
+  ---
+  duration_ms: 0.225792
+  type: 'test'
+  ...
+# Subtest: S-1: no avgRange14h skips stop width check
+ok 468 - S-1: no avgRange14h skips stop width check
+  ---
+  duration_ms: 0.081834
+  type: 'test'
+  ...
+# Subtest: S-1: validateIdeasWithMarket concatenates issues and runs only when parsed.ok
+ok 469 - S-1: validateIdeasWithMarket concatenates issues and runs only when parsed.ok
+  ---
+  duration_ms: 0.524459
+  type: 'test'
+  ...
+# Subtest: S-2: summarizeCandles computes true 24h extremes and avgRange14h
+ok 470 - S-2: summarizeCandles computes true 24h extremes and avgRange14h
+  ---
+  duration_ms: 0.779584
+  type: 'test'
+  ...
+# Subtest: S-4: buildScoutPrompt version is scout-ideas-v4
+ok 471 - S-4: buildScoutPrompt version is scout-ideas-v4
+  ---
+  duration_ms: 0.210209
+  type: 'test'
+  ...
+# Subtest: S-1/G-8: openPosition symbol is rejected
+ok 472 - S-1/G-8: openPosition symbol is rejected
+  ---
+  duration_ms: 0.105167
+  type: 'test'
+  ...
+# Subtest: S-5: buildScoutPrompt strips instrument from symbols in user payload
+not ok 473 - S-5: buildScoutPrompt strips instrument from symbols in user payload
+  ---
+  duration_ms: 0.268417
+  type: 'test'
+  location: '/Users/konstantinsergeev/.hermes/profiles/developer/cache/scratch/baseline-wt2/test/telegram-ideas.test.mjs:143:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Unexpected token 'N', "NEWS:
+    {"ne"... is not valid JSON
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    JSON.parse (<anonymous>)
+    TestContext.<anonymous> (file:///Users/konstantinsergeev/.hermes/profiles/developer/cache/scratch/baseline-wt2/test/telegram-ideas.test.mjs:153:23)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: S-6: summarize4h computes bias and swing levels from 4h candles
+ok 474 - S-6: summarize4h computes bias and swing levels from 4h candles
+  ---
+  duration_ms: 0.311208
+  type: 'test'
+  ...
+# Subtest: parseMonitorResponse: HOLD passes, result has no newStop
+ok 475 - parseMonitorResponse: HOLD passes, result has no newStop
+  ---
+  duration_ms: 2.022292
+  type: 'test'
+  ...
+# Subtest: parseMonitorResponse: EXIT passes; TRAIL is parse error
+ok 476 - parseMonitorResponse: EXIT passes; TRAIL is parse error
+  ---
+  duration_ms: 0.3215
+  type: 'test'
+  ...
+# Subtest: shouldConsultStopcheck: false means no LLM call
+ok 477 - shouldConsultStopcheck: false means no LLM call
+  ---
+  duration_ms: 0.127667
+  type: 'test'
+  ...
+# Subtest: isTrendAgainst: direction logic
+ok 478 - isTrendAgainst: direction logic
+  ---
+  duration_ms: 0.129958
+  type: 'test'
+  ...
+# Subtest: decideStopcheckAction: code+model agreement required for AUTO_CLOSE
+ok 479 - decideStopcheckAction: code+model agreement required for AUTO_CLOSE
+  ---
+  duration_ms: 0.282084
+  type: 'test'
+  ...
+# Subtest: buildMonitorPrompt/buildStopcheckPrompt versions and payload keys
+not ok 480 - buildMonitorPrompt/buildStopcheckPrompt versions and payload keys
+  ---
+  duration_ms: 0.263584
+  type: 'test'
+  location: '/Users/konstantinsergeev/.hermes/profiles/developer/cache/scratch/baseline-wt2/test/telegram-monitor.test.mjs:55:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Unexpected token 'N', "NEWS:
+    {"ne"... is not valid JSON
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    JSON.parse (<anonymous>)
+    TestContext.<anonymous> (file:///Users/konstantinsergeev/.hermes/profiles/developer/cache/scratch/baseline-wt2/test/telegram-monitor.test.mjs:62:22)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: MONITOR_SYSTEM_PROMPT does not contain TRAIL or newStop
+ok 481 - MONITOR_SYSTEM_PROMPT does not contain TRAIL or newStop
+  ---
+  duration_ms: 0.185333
+  type: 'test'
+  ...
+# Subtest: STOPCHECK_SYSTEM_PROMPT does not contain 0.8 or auto-execut
+ok 482 - STOPCHECK_SYSTEM_PROMPT does not contain 0.8 or auto-execut
+  ---
+  duration_ms: 0.215209
+  type: 'test'
+  ...
+# Subtest: M-5: background notification helper logic
+ok 483 - M-5: background notification helper logic
+  ---
+  duration_ms: 0.488084
+  type: 'test'
+  ...
+# Subtest: T-1: harvestDecision — pnl below arm → not armed
+ok 484 - T-1: harvestDecision — pnl below arm → not armed
+  ---
+  duration_ms: 0.787166
+  type: 'test'
+  ...
+# Subtest: T-1: harvestDecision — pnl 1.6 updates peak
+ok 485 - T-1: harvestDecision — pnl 1.6 updates peak
+  ---
+  duration_ms: 0.100042
+  type: 'test'
+  ...
+# Subtest: T-1: harvestDecision — retrace from peak 1.6 to 0.79 → close
+ok 486 - T-1: harvestDecision — retrace from peak 1.6 to 0.79 → close
+  ---
+  duration_ms: 0.923333
+  type: 'test'
+  ...
+# Subtest: T-1: harvestDecision — temporary dip without hitting threshold → no close
+ok 487 - T-1: harvestDecision — temporary dip without hitting threshold → no close
+  ---
+  duration_ms: 0.164917
+  type: 'test'
+  ...
+# Subtest: T-1: harvestDecision — invalid inputs fail-closed
+ok 488 - T-1: harvestDecision — invalid inputs fail-closed
+  ---
+  duration_ms: 0.134667
+  type: 'test'
+  ...
+# Subtest: T-3: travel >= activationPct freezes TP (regression via computeTrailingTakeProfit)
+ok 489 - T-3: travel >= activationPct freezes TP (regression via computeTrailingTakeProfit)
+  ---
+  duration_ms: 0.318541
+  type: 'test'
+  ...
+# Subtest: T-5: mfeUsd is accepted by reflect input type
+ok 490 - T-5: mfeUsd is accepted by reflect input type
+  ---
+  duration_ms: 2.284417
+  type: 'test'
+  ...
+# Subtest: T-5: perf give-back block computed correctly on fixture
+ok 491 - T-5: perf give-back block computed correctly on fixture
+  ---
+  duration_ms: 0.181291
+  type: 'test'
+  ...
+# Subtest: inferExitCause: exit≈SL => stop; exit≈TP => target; far => external; no SL/TP => unknown
+ok 492 - inferExitCause: exit≈SL => stop; exit≈TP => target; far => external; no SL/TP => unknown
+  ---
+  duration_ms: 1.974125
+  type: 'test'
+  ...
+# Subtest: R-1b: manual loss (symbol not in autoOpenedSymbols) does not change autoDailyLossUsd
+ok 493 - R-1b: manual loss (symbol not in autoOpenedSymbols) does not change autoDailyLossUsd
+  ---
+  duration_ms: 0.331209
+  type: 'test'
+  ...
+# Subtest: R-1c: fetchRecentClosedPnl null path is not reflected (smoke: reflect skipped when no record)
+ok 494 - R-1c: fetchRecentClosedPnl null path is not reflected (smoke: reflect skipped when no record)
+  ---
+  duration_ms: 0.147333
+  type: 'test'
+  ...
+# Subtest: loadState: missing file => default; corrupt JSON => default; day change resets daily loss
+ok 495 - loadState: missing file => default; corrupt JSON => default; day change resets daily loss
+  ---
+  duration_ms: 9.72175
+  type: 'test'
+  ...
+# Subtest: saveState -> loadState round-trip; reflectedCloseIds capped at 500
+ok 496 - saveState -> loadState round-trip; reflectedCloseIds capped at 500
+  ---
+  duration_ms: 6.754625
+  type: 'test'
+  ...
+# Subtest: dedup: repeated recordId does not append duplicate
+ok 497 - dedup: repeated recordId does not append duplicate
+  ---
+  duration_ms: 0.847209
+  type: 'test'
+  ...
+# Subtest: R-3b: matchedExistingRule=true + empty proposedRule skips file append
+ok 498 - R-3b: matchedExistingRule=true + empty proposedRule skips file append
+  ---
+  duration_ms: 5.602959
+  type: 'test'
+  ...
+# Subtest: REFLECT_SYSTEM_PROMPT contains severity rubric and "Never invent"
+ok 499 - REFLECT_SYSTEM_PROMPT contains severity rubric and "Never invent"
+  ---
+  duration_ms: 0.225708
+  type: 'test'
+  ...
+# Subtest: createReflector: severity outside enum falls back to low
+ok 500 - createReflector: severity outside enum falls back to low
+  ---
+  duration_ms: 0.818458
+  type: 'test'
+  ...
+# Subtest: /rules: format helper returns last 20 non-empty lines
+ok 501 - /rules: format helper returns last 20 non-empty lines
+  ---
+  duration_ms: 11.668542
+  type: 'test'
+  ...
+# Subtest: AUTH: signRequest follows the V5 message layout for GET query strings
+ok 502 - AUTH: signRequest follows the V5 message layout for GET query strings
+  ---
+  duration_ms: 1.081166
+  type: 'test'
+  ...
+# Subtest: AUTH: signRequest signs the raw body for POST requests
+ok 503 - AUTH: signRequest signs the raw body for POST requests
+  ---
+  duration_ms: 0.151667
+  type: 'test'
+  ...
+# Subtest: AUTH: buildAuthHeaders selects query (GET) or body (POST) as the signed payload and leaks no secret
+ok 504 - AUTH: buildAuthHeaders selects query (GET) or body (POST) as the signed payload and leaks no secret
+  ---
+  duration_ms: 0.283916
+  type: 'test'
+  ...
+# Subtest: AUTH: missing credentials fail closed without echoing the secret
+ok 505 - AUTH: missing credentials fail closed without echoing the secret
+  ---
+  duration_ms: 0.421167
+  type: 'test'
+  ...
+# Subtest: AUTH: WebSocket auth signs GET/realtime<expires>
+ok 506 - AUTH: WebSocket auth signs GET/realtime<expires>
+  ---
+  duration_ms: 0.450667
+  type: 'test'
+  ...
+# Subtest: AUTH: a non-integer expiry is a configuration error
+ok 507 - AUTH: a non-integer expiry is a configuration error
+  ---
+  duration_ms: 0.10925
+  type: 'test'
+  ...
+# Subtest: MODE: TESTNET is a first-class trading mode
+ok 508 - MODE: TESTNET is a first-class trading mode
+  ---
+  duration_ms: 0.983417
+  type: 'test'
+  ...
+# Subtest: MODE: an ambiguous TESTNET configuration is refused at startup
+ok 509 - MODE: an ambiguous TESTNET configuration is refused at startup
+  ---
+  duration_ms: 1.204291
+  type: 'test'
+  ...
+# Subtest: ADAPTER: implements the ExecutionAdapter contract and declares no real orders
+ok 510 - ADAPTER: implements the ExecutionAdapter contract and declares no real orders
+  ---
+  duration_ms: 0.4245
+  type: 'test'
+  ...
+# Subtest: ADAPTER: refuses a non-testnet client or host
+ok 511 - ADAPTER: refuses a non-testnet client or host
+  ---
+  duration_ms: 0.252042
+  type: 'test'
+  ...
+# Subtest: ADAPTER: refuses to execute a non-approved risk result
+ok 512 - ADAPTER: refuses to execute a non-approved risk result
+  ---
+  duration_ms: 2.167125
+  type: 'test'
+  ...
+# Subtest: SESSION: mode selects PAPER or TESTNET and refuses LIVE/BACKTEST
+ok 513 - SESSION: mode selects PAPER or TESTNET and refuses LIVE/BACKTEST
+  ---
+  duration_ms: 0.23
+  type: 'test'
+  ...
+# Subtest: SESSION: createTradingSession builds a TESTNET session and refuses LIVE
+ok 514 - SESSION: createTradingSession builds a TESTNET session and refuses LIVE
+  ---
+  duration_ms: 6.344792
+  type: 'test'
+  ...
+# Subtest: SESSION: a PAPER adapter is refused by a TESTNET session
+ok 515 - SESSION: a PAPER adapter is refused by a TESTNET session
+  ---
+  duration_ms: 0.357167
+  type: 'test'
+  ...
+# Subtest: SAFETY: a risk-rejected proposal makes no exchange call on the TESTNET path
+ok 516 - SAFETY: a risk-rejected proposal makes no exchange call on the TESTNET path
+  ---
+  duration_ms: 9.191417
+  type: 'test'
+  ...
+# Subtest: SAFETY: an engaged kill switch makes no exchange call on the TESTNET path
+ok 517 - SAFETY: an engaged kill switch makes no exchange call on the TESTNET path
+  ---
+  duration_ms: 3.597292
+  type: 'test'
+  ...
+# Subtest: SAFETY: an approved TESTNET entry reaches the exchange exactly once (idempotent)
+ok 518 - SAFETY: an approved TESTNET entry reaches the exchange exactly once (idempotent)
+  ---
+  duration_ms: 12.814084
+  type: 'test'
+  ...
+# Subtest: TESTNET LIVE: an authenticated read-only call succeeds against api-testnet.bybit.com
+ok 519 - TESTNET LIVE: an authenticated read-only call succeeds against api-testnet.bybit.com # SKIP set RUN_TESTNET_TESTS=true and BYBIT_TESTNET_API_KEY/SECRET to enable
+  ---
+  duration_ms: 0.532708
+  type: 'test'
+  ...
+# Subtest: GUARD: a fully testnet context is allowed
+ok 520 - GUARD: a fully testnet context is allowed
+  ---
+  duration_ms: 1.15425
+  type: 'test'
+  ...
+# Subtest: GUARD: testnet mode is never inferred from a host alone
+ok 521 - GUARD: testnet mode is never inferred from a host alone
+  ---
+  duration_ms: 0.914125
+  type: 'test'
+  ...
+# Subtest: GUARD: a production host is refused even in testnet mode
+ok 522 - GUARD: a production host is refused even in testnet mode
+  ---
+  duration_ms: 0.160834
+  type: 'test'
+  ...
+# Subtest: GUARD: missing dedicated credentials are refused
+ok 523 - GUARD: missing dedicated credentials are refused
+  ---
+  duration_ms: 0.329792
+  type: 'test'
+  ...
+# Subtest: GUARD: base URL validation accepts only the testnet host
+ok 524 - GUARD: base URL validation accepts only the testnet host
+  ---
+  duration_ms: 0.65675
+  type: 'test'
+  ...
+# Subtest: GUARD: the private WebSocket resolver is testnet only
+ok 525 - GUARD: the private WebSocket resolver is testnet only
+  ---
+  duration_ms: 0.49975
+  type: 'test'
+  ...
+# Subtest: GUARD: the authenticated path allowlist contains order paths and nothing else
+ok 526 - GUARD: the authenticated path allowlist contains order paths and nothing else
+  ---
+  duration_ms: 0.411125
+  type: 'test'
+  ...
+# Subtest: GUARD: testnet credentials never fall back to production keys
+ok 527 - GUARD: testnet credentials never fall back to production keys
+  ---
+  duration_ms: 0.939833
+  type: 'test'
+  ...
+# Subtest: GUARD: enabling testnet config without dedicated keys is a startup error
+ok 528 - GUARD: enabling testnet config without dedicated keys is a startup error
+  ---
+  duration_ms: 0.649834
+  type: 'test'
+  ...
+# Subtest: CONFIG: TESTNET requires dedicated BYBIT_TESTNET_* keys
+ok 529 - CONFIG: TESTNET requires dedicated BYBIT_TESTNET_* keys
+  ---
+  duration_ms: 0.664584
+  type: 'test'
+  ...
+# Subtest: CONFIG: missing TESTNET credentials fails closed
+ok 530 - CONFIG: missing TESTNET credentials fails closed
+  ---
+  duration_ms: 0.201917
+  type: 'test'
+  ...
+# Subtest: CONFIG: legacy generic keys do not accidentally enable LIVE or TESTNET
+ok 531 - CONFIG: legacy generic keys do not accidentally enable LIVE or TESTNET
+  ---
+  duration_ms: 0.0975
+  type: 'test'
+  ...
+# Subtest: CONFIG: TESTNET selects testnet endpoint only
+ok 532 - CONFIG: TESTNET selects testnet endpoint only
+  ---
+  duration_ms: 0.172666
+  type: 'test'
+  ...
+# Subtest: CONFIG: LIVE remains blocked even with testnet keys present
+ok 533 - CONFIG: LIVE remains blocked even with testnet keys present
+  ---
+  duration_ms: 0.0605
+  type: 'test'
+  ...
+# Subtest: CONFIG: loader does not log credential values
+ok 534 - CONFIG: loader does not log credential values
+  ---
+  duration_ms: 0.136375
+  type: 'test'
+  ...
+# Subtest: MODE: TESTNET_ONCE is a first-class mode, distinct from TESTNET
+ok 535 - MODE: TESTNET_ONCE is a first-class mode, distinct from TESTNET
+  ---
+  duration_ms: 1.193125
+  type: 'test'
+  ...
+# Subtest: MODE: TESTNET_ONCE selects the canonical TESTNET adapter
+ok 536 - MODE: TESTNET_ONCE selects the canonical TESTNET adapter
+  ---
+  duration_ms: 0.598583
+  type: 'test'
+  ...
+# Subtest: STARTUP: TESTNET_ONCE pins the testnet host and refuses a live opt-in
+ok 537 - STARTUP: TESTNET_ONCE pins the testnet host and refuses a live opt-in
+  ---
+  duration_ms: 0.861667
+  type: 'test'
+  ...
+# Subtest: STARTUP: LIVE is still rejected and TESTNET_ONCE refuses a non-testnet adapter
+ok 538 - STARTUP: LIVE is still rejected and TESTNET_ONCE refuses a non-testnet adapter
+  ---
+  duration_ms: 0.6025
+  type: 'test'
+  ...
+# Subtest: SESSION: createTradingSession builds a one-shot TESTNET session
+ok 539 - SESSION: createTradingSession builds a one-shot TESTNET session
+  ---
+  duration_ms: 9.86275
+  type: 'test'
+  ...
+# Subtest: ONE-SHOT: a risk-rejected intent submits nothing and shuts down
+ok 540 - ONE-SHOT: a risk-rejected intent submits nothing and shuts down
+  ---
+  duration_ms: 8.48325
+  type: 'test'
+  ...
+# Subtest: ONE-SHOT: no valid intent submits nothing and shuts down
+ok 541 - ONE-SHOT: no valid intent submits nothing and shuts down
+  ---
+  duration_ms: 3.264292
+  type: 'test'
+  ...
+# Subtest: ONE-SHOT: the first approved order is submitted once and the session shuts down
+ok 542 - ONE-SHOT: the first approved order is submitted once and the session shuts down
+  ---
+  duration_ms: 4.882459
+  type: 'test'
+  ...
+# Subtest: GUARD: a second submission is refused and never reaches the exchange
+ok 543 - GUARD: a second submission is refused and never reaches the exchange
+  ---
+  duration_ms: 2.997
+  type: 'test'
+  ...
+# Subtest: GUARD: the execution adapter itself refuses the second order in one-shot mode
+ok 544 - GUARD: the execution adapter itself refuses the second order in one-shot mode
+  ---
+  duration_ms: 0.905084
+  type: 'test'
+  ...
+# Subtest: ONE-SHOT: an exchange refusal shuts the session down and never retries
+ok 545 - ONE-SHOT: an exchange refusal shuts the session down and never retries
+  ---
+  duration_ms: 2.578292
+  type: 'test'
+  ...
+# Subtest: ONE-SHOT: an engaged kill switch stops the order and shuts down
+ok 546 - ONE-SHOT: an engaged kill switch stops the order and shuts down
+  ---
+  duration_ms: 1.486416
+  type: 'test'
+  ...
+# Subtest: REGRESSION: continuous TESTNET is untouched by the one-shot mode
+ok 547 - REGRESSION: continuous TESTNET is untouched by the one-shot mode
+  ---
+  duration_ms: 3.640458
+  type: 'test'
+  ...
+# Subtest: ORDER MAP: every documented Bybit status maps to a domain status
+ok 548 - ORDER MAP: every documented Bybit status maps to a domain status
+  ---
+  duration_ms: 2.132833
+  type: 'test'
+  ...
+# Subtest: ORDER MAP: time-in-force maps both directions
+ok 549 - ORDER MAP: time-in-force maps both directions
+  ---
+  duration_ms: 0.453875
+  type: 'test'
+  ...
+# Subtest: ORDER MAP: a domain OrderRequest becomes Bybit parameters
+ok 550 - ORDER MAP: a domain OrderRequest becomes Bybit parameters
+  ---
+  duration_ms: 0.960209
+  type: 'test'
+  ...
+# Subtest: ORDER MAP: a raw Bybit order becomes a validated domain Order
+ok 551 - ORDER MAP: a raw Bybit order becomes a validated domain Order
+  ---
+  duration_ms: 0.533875
+  type: 'test'
+  ...
+# Subtest: FSM: legal transitions reduce forward
+ok 552 - FSM: legal transitions reduce forward
+  ---
+  duration_ms: 0.286834
+  type: 'test'
+  ...
+# Subtest: FSM: impossible transitions and unknown states fail closed
+ok 553 - FSM: impossible transitions and unknown states fail closed
+  ---
+  duration_ms: 0.194916
+  type: 'test'
+  ...
+# Subtest: FSM: terminal states are recognised
+ok 554 - FSM: terminal states are recognised
+  ---
+  duration_ms: 0.247958
+  type: 'test'
+  ...
+# Subtest: PRIVATE WS: connect authenticates with a signed frame before subscribing
+ok 555 - PRIVATE WS: connect authenticates with a signed frame before subscribing
+  ---
+  duration_ms: 2.524625
+  type: 'test'
+  ...
+# Subtest: PRIVATE WS: order events are routed after authentication, control frames ignored
+ok 556 - PRIVATE WS: order events are routed after authentication, control frames ignored
+  ---
+  duration_ms: 0.279417
+  type: 'test'
+  ...
+# Subtest: PRIVATE WS: a rejected auth is terminal and never subscribes
+ok 557 - PRIVATE WS: a rejected auth is terminal and never subscribes
+  ---
+  duration_ms: 0.319584
+  type: 'test'
+  ...
+# Subtest: PRIVATE WS: subscribing before auth is refused locally
+ok 558 - PRIVATE WS: subscribing before auth is refused locally
+  ---
+  duration_ms: 1.249041
+  type: 'test'
+  ...
+# Subtest: PRIVATE WS: the constructor refuses mainnet, non-testnet and missing credentials
+ok 559 - PRIVATE WS: the constructor refuses mainnet, non-testnet and missing credentials
+  ---
+  duration_ms: 0.300208
+  type: 'test'
+  ...
+# Subtest: PRIVATE WS: a dropped socket reconnects with backoff and re-authenticates
+ok 560 - PRIVATE WS: a dropped socket reconnects with backoff and re-authenticates
+  ---
+  duration_ms: 0.346666
+  type: 'test'
+  ...
+# Subtest: PRIVATE WS: close() is terminal and clears timers
+ok 561 - PRIVATE WS: close() is terminal and clears timers
+  ---
+  duration_ms: 0.285625
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: a mainnet host is refused at construction
+ok 562 - REST-ORDERS: a mainnet host is refused at construction
+  ---
+  duration_ms: 1.409042
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: testnet mode and dedicated credentials are required at construction
+ok 563 - REST-ORDERS: testnet mode and dedicated credentials are required at construction
+  ---
+  duration_ms: 0.40175
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: a production-only environment cannot build a testnet client
+ok 564 - REST-ORDERS: a production-only environment cannot build a testnet client
+  ---
+  duration_ms: 0.114458
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: placeOrder POSTs a signed body to the testnet order endpoint
+ok 565 - REST-ORDERS: placeOrder POSTs a signed body to the testnet order endpoint
+  ---
+  duration_ms: 1.603708
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: raw Bybit params pass through placeOrder unchanged
+ok 566 - REST-ORDERS: raw Bybit params pass through placeOrder unchanged
+  ---
+  duration_ms: 0.343792
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: cancelOrder POSTs a signed body and validates its arguments
+ok 567 - REST-ORDERS: cancelOrder POSTs a signed body and validates its arguments
+  ---
+  duration_ms: 0.513791
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: getOrder GETs a signed query and returns a domain Order
+ok 568 - REST-ORDERS: getOrder GETs a signed query and returns a domain Order
+  ---
+  duration_ms: 0.948708
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: an unlisted path is refused before any request
+ok 569 - REST-ORDERS: an unlisted path is refused before any request
+  ---
+  duration_ms: 0.198542
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: a write failure is a non-retryable OrderError; a read failure is a DataError
+ok 570 - REST-ORDERS: a write failure is a non-retryable OrderError; a read failure is a DataError
+  ---
+  duration_ms: 1.118584
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: auth retCodes and HTTP 401 become AuthenticationError
+ok 571 - REST-ORDERS: auth retCodes and HTTP 401 become AuthenticationError
+  ---
+  duration_ms: 1.323625
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: a transport failure and HTTP 5xx are retryable NetworkErrors for reads
+ok 572 - REST-ORDERS: a transport failure and HTTP 5xx are retryable NetworkErrors for reads
+  ---
+  duration_ms: 290.761375
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: rate-limit retCodes are retried for reads
+ok 573 - REST-ORDERS: rate-limit retCodes are retried for reads
+  ---
+  duration_ms: 1.450542
+  type: 'test'
+  ...
+# Subtest: REST-ORDERS: getOrder with no matching order is a DataError
+ok 574 - REST-ORDERS: getOrder with no matching order is a DataError
+  ---
+  duration_ms: 0.354458
+  type: 'test'
+  ...
+1..574
+# tests 574
+# suites 0
+# pass 570
+# fail 3
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 1084.309667

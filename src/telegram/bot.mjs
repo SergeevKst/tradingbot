@@ -16,6 +16,8 @@ import { readFile, rename, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDeepSeekChat } from './deepseek-client.mjs';
+import { createTelegramAICompositionFromEnv } from './ai-composition.mjs';
+import { createAIEffectGateway, UnknownEffectOutcome } from './ai-effect-gateway.mjs';
 import { createBybitRestMarketDataAdapter } from '../adapters/bybit/rest-market-data-adapter.mjs';
 import { createPipelineLogger } from './pipeline-log.mjs';
 import {
@@ -253,7 +255,59 @@ async function main() {
   const log = createPipelineLogger({ file: process.env.PIPELINE_LOG_FILE ?? 'data/telegram/pipeline.jsonl' });
 
   let chat = null;
+
+  // Single-mode AI binding (UAI-06B). In legacy mode this is null and every
+  // existing code path is unchanged. In single mode the composition validates
+  // deployment identity before any AI timer or command is actionable; a failure
+  // never stops deterministic protection — it only gates AI.
+  const aiRuntimeMode = String(process.env.AI_RUNTIME_MODE ?? 'legacy').trim().toLowerCase();
+  /** @type {ReturnType<typeof createTelegramAICompositionFromEnv>} */
+  let aiComposition = null;
+  /** @type {Error | null} */
+  let aiUnavailable = null;
+  /** @type {(previewId: string) => string} */
+  const previewEffectKey = (previewId) => `effect:${previewId}`;
+  /** @type {(proposalId: string) => string} */
+  const exitEffectKey = (proposalId) => `exit:${proposalId}`;
+  if (aiRuntimeMode === 'single') {
+    try {
+      aiComposition = createTelegramAICompositionFromEnv({
+        env: process.env,
+        logger: {
+          debug: () => {},
+          info: (message, meta) => console.error(`[ai] ${message}`, meta ?? ''),
+          warn: (message, meta) => console.error(`[ai] ${message}`, meta ?? ''),
+          error: (message, meta) => console.error(`[ai] ${message}`, meta ?? ''),
+        },
+      });
+      const aiStatus = aiComposition.start();
+      console.error('[ai] identity', JSON.stringify(aiStatus));
+      aiComposition.startPolling({ intervalMs: 1000 });
+    } catch (error) {
+      aiUnavailable = error instanceof Error ? error : new Error(String(error));
+      console.error('[ai] single-mode binding failed; AI is gated while protection continues:', aiUnavailable.message);
+    }
+  }
+
+  // Every AI-derived exchange write goes through one gateway (architecture §5):
+  // provenance, counted scope, generation check immediately before the dispatch,
+  // and settle/retain/rearm on the outcome. It is a pass-through in legacy mode.
+  const aiEffects = createAIEffectGateway({
+    composition: aiComposition,
+    logger: {
+      debug: () => {},
+      info: () => {},
+      warn: (message, meta) => console.error(`[ai] ${message}`, meta ?? ''),
+      error: (message, meta) => console.error(`[ai] ${message}`, meta ?? ''),
+    },
+  });
+
   function getChat() {
+    if (aiComposition !== null) return aiComposition.getChatClient();
+    if (aiRuntimeMode === 'single') {
+      // Never fall back to the legacy env-identity client in single mode.
+      throw aiUnavailable ?? new Error('AI identity is not ready');
+    }
     if (chat === null) {
       chat = createDeepSeekChat({
         // Per-role providers: the scout runs cheap (DeepSeek Flash), the guard can
@@ -492,6 +546,19 @@ async function main() {
           createdAt: Date.now(),
           instrument: snapForIdea?.instrument ?? null,
         });
+        // Bind the human approval to the generation that produced it. A restart
+        // or a transition invalidates the sidecar, so a late tap cannot act on
+        // an old generation's analysis.
+        if (aiComposition !== null) {
+          try {
+            aiComposition.registerPendingApproval(`${batchId}:${i}`, { operation: 'GUARD' });
+          } catch (error) {
+            log.guard('pending approval not bound to a generation', {
+              key: `${batchId}:${i}`,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
         const keyboard = new InlineKeyboard()
           .text('✅ Approve', `approve:${batchId}:${i}`)
           .text('❌ Decline', `decline:${batchId}:${i}`);
@@ -603,10 +670,26 @@ async function main() {
     const key = `${ctx.match[1]}:${ctx.match[2]}`;
     const entry = pending.get(key);
     if (!entry) {
+      aiComposition?.dropPendingApproval(key);
       await ctx.answerCallbackQuery({ text: 'Сделка устарела — запусти /trade заново.' });
       return;
     }
     pending.delete(key);
+
+    // Consume the generation sidecar and acquire the counted work token
+    // synchronously, before the first await of the effect path. A stale or
+    // duplicate tap is rejected instead of re-using an old analysis.
+    /** @type {{ settle: () => void } | null} */
+    let aiApproval = null;
+    if (aiComposition !== null) {
+      try {
+        aiApproval = aiComposition.beginApprovalConsumption(key);
+      } catch (error) {
+        await ctx.answerCallbackQuery({ text: 'Анализ устарел — запусти /trade заново.' });
+        await ctx.reply('⚠️ Это одобрение относится к прошлой генерации модели. Запусти /trade заново.');
+        return;
+      }
+    }
 
     const { idea, instrument } = entry;
     try {
@@ -636,6 +719,26 @@ async function main() {
       previewData.createdAt = Date.now();
       preview.set(previewId, previewData);
 
+      // Hand the counted scope of the analysing generation to the preview ticket
+      // as a pending effect sidecar. The final confirm tap consumes it; until
+      // then the ticket cannot dispatch under any other generation. Binding is
+      // refused (and the ticket dropped) if the generation moved in between.
+      if (aiApproval !== null) {
+        try {
+          aiEffects.hold(previewEffectKey(previewId), aiApproval, { operation: 'GUARD', purpose: 'entry' });
+        } catch (error) {
+          preview.delete(previewId);
+          log.guard('preview not bound to a generation', {
+            previewId,
+            symbol: idea.symbol,
+            code: error?.code ?? null,
+          });
+          await ctx.answerCallbackQuery({ text: 'Анализ устарел' });
+          await ctx.reply('⚠️ Поколение модели сменилось, пока собирался предпросмотр — ордер НЕ поставлен. Запусти /trade заново.');
+          return;
+        }
+      }
+
       // SHORT is not possible on spot — offer it, but mark spot unavailable for shorts.
       const isShort = idea.side === 'SHORT';
       const spotLabel = isShort ? 'Спот (недоступно)' : 'Спот';
@@ -655,6 +758,8 @@ async function main() {
       log.execute('preview failed', { symbol: idea.symbol, error: error instanceof Error ? error.message : String(error) });
       await ctx.answerCallbackQuery({ text: 'Ошибка' });
       await ctx.reply(`❌ Ошибка предпросмотра: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      if (aiApproval !== null) aiApproval.settle();
     }
   });
 
@@ -745,6 +850,13 @@ async function main() {
   }
 
   // ---- Final execution ----
+  //
+  // The tap that actually places an order. It is an AI-derived effect, so it
+  // runs under the provenance of the analysis that produced the ticket: the
+  // sidecar is consumed synchronously (before the first await), the control
+  // record is reread immediately before the exchange write, and the outcome is
+  // settled — or retained when the exchange answer is unknown, which blocks AI
+  // quiescence until an operator reconciles it.
   bot.callbackQuery(/^exec:(.+):(spot|linear)$/, async (ctx) => {
     const previewId = ctx.match[1];
     const type = ctx.match[2];
@@ -755,154 +867,216 @@ async function main() {
     }
     p.type = type;
 
+    /** @type {any | null} */
+    let aiEffect = null;
+    if (aiEffects.enabled) {
+      try {
+        aiEffect = aiEffects.consume(previewEffectKey(previewId));
+      } catch (error) {
+        preview.delete(previewId);
+        log.execute('entry refused: retired provenance', { previewId, symbol: p.idea?.symbol ?? null, code: error?.code ?? null });
+        await ctx.answerCallbackQuery({ text: 'Анализ устарел' });
+        await ctx.reply('⚠️ Это подтверждение относится к прошлой генерации модели — ордер НЕ поставлен. Запусти /trade заново.');
+        return;
+      }
+    }
+
     const apiKey = process.env.BYBIT_API_KEY;
     const apiSecret = process.env.BYBIT_API_SECRET;
     const { idea, instrument, sizing } = p;
     const side = idea.side === 'LONG' ? 'Buy' : 'Sell';
+    const orderLinkId = `tg-${Date.now()}`;
+    /** @type {string | null} */
+    let spotQty = null;
+    /** @type {any} */
+    let entryDecision = null;
 
     try {
-      const orderLinkId = `tg-${Date.now()}`;
-      let resultMsg;
-
-      if (type === 'spot') {
-        // Spot uses a finer qty grid than linear; re-read the SPOT instrument and
-        // re-snap the quantity so the order is never rejected for a step mismatch.
-        // Spot also enforces a minimum order value (minOrderAmt, usually ~$5);
-        // the risk engine's quantity can be smaller than that (it sizes for the
-        // stop distance, not for the minimum ticket). We raise the quantity to the
-        // spot minimum and report the TRUE notional the user is committing.
-        let spotQtyNum = sizing.quantity;
-        let spotQtyStep = null;
-        let spotMinOrderAmt = null;
-        try {
-          const spotRes = await fetch(`https://api.bybit.com/v5/market/instruments-info?category=spot&symbol=${encodeURIComponent(idea.symbol)}`);
-          const spotP = await spotRes.json();
-          const spotInstr = (spotP.result?.list ?? [])[0];
-          const lsf = spotInstr?.lotSizeFilter;
-          // Spot reports `basePrecision` (not `qtyStep`); the step is 10^-precision.
-          const basePrecision = Number(lsf?.basePrecision);
-          spotQtyStep = Number.isFinite(basePrecision) && basePrecision > 0 ? Number(`1e-${basePrecision}`) : null;
-          spotMinOrderAmt = Number(lsf?.minOrderAmt);
-          if (Number.isFinite(spotQtyStep) && spotQtyStep > 0) {
-            const norm = normalizeQuantity(spotQtyNum, spotQtyStep);
-            if (norm.ok && norm.value !== null) spotQtyNum = norm.value;
-          }
-        } catch { /* fall back to linear-qty on any spot-metadata error */ }
-
-        const spotPrice = p.live.lastPrice;
-        let notional = spotQtyNum * spotPrice;
-        // Raise to the exchange minimum order value (with a small buffer so a
-        // moving price can't dip it back under the limit mid-flight).
-        if (Number.isFinite(spotMinOrderAmt) && spotMinOrderAmt > 0 && notional < spotMinOrderAmt) {
-          const targetQty = spotMinOrderAmt * 1.02 / spotPrice;
-          if (Number.isFinite(spotQtyStep) && spotQtyStep > 0) {
-            const norm = normalizeQuantity(targetQty, spotQtyStep);
-            if (norm.ok && norm.value !== null) {
-              spotQtyNum = norm.value;
-              notional = spotQtyNum * spotPrice;
+      const outcome = await aiEffects.dispatch(aiEffect, {
+        lane: `entry-${type}`,
+        rearmAs: previewEffectKey(previewId),
+        // Everything that is not an order: instrument metadata, leverage and
+        // the drift decision. A failure here is definitively "nothing sent".
+        prepare: async () => {
+          if (type !== 'spot') {
+            // Futures → set leverage explicitly, then place.
+            const lev = p.leverage ?? '1';
+            try {
+              await setLeverage({ apiKey, apiSecret }, { symbol: idea.symbol, leverage: lev });
+            } catch (levErr) {
+              const msg = levErr instanceof Error ? levErr.message : String(levErr);
+              if (msg.includes('110043') || msg.includes('110077')) {
+                // 110043 = leverage already equals the requested value.
+                // 110077 = Portfolio Margin — exchange sizes leverage itself.
+                // Neither is a real error; proceed to place the order.
+              } else {
+                throw new Error(`Не удалось выставить плечо ${lev}×. ${msg}\n\nЭто значит биржа не применила плечо — попробуй меньшее плечо или другую монету.`);
+              }
             }
-          } else {
-            spotQtyNum = targetQty;
-            notional = spotQtyNum * spotPrice;
           }
-        }
-        const spotQty = String(spotQtyNum);
+          if (type === 'spot') {
+            // Spot uses a finer qty grid than linear; re-read the SPOT instrument
+            // and re-snap the quantity so the order is never rejected for a step
+            // mismatch. Spot also enforces a minimum order value (minOrderAmt,
+            // usually ~$5); the risk engine's quantity can be smaller than that
+            // (it sizes for the stop distance, not for the minimum ticket). We
+            // raise the quantity to the spot minimum and report the TRUE notional
+            // the user is committing.
+            let spotQtyNum = sizing.quantity;
+            let spotQtyStep = null;
+            let spotMinOrderAmt = null;
+            try {
+              const spotRes = await fetch(`https://api.bybit.com/v5/market/instruments-info?category=spot&symbol=${encodeURIComponent(idea.symbol)}`);
+              const spotP = await spotRes.json();
+              const spotInstr = (spotP.result?.list ?? [])[0];
+              const lsf = spotInstr?.lotSizeFilter;
+              // Spot reports `basePrecision` (not `qtyStep`); the step is 10^-precision.
+              const basePrecision = Number(lsf?.basePrecision);
+              spotQtyStep = Number.isFinite(basePrecision) && basePrecision > 0 ? Number(`1e-${basePrecision}`) : null;
+              spotMinOrderAmt = Number(lsf?.minOrderAmt);
+              if (Number.isFinite(spotQtyStep) && spotQtyStep > 0) {
+                const norm = normalizeQuantity(spotQtyNum, spotQtyStep);
+                if (norm.ok && norm.value !== null) spotQtyNum = norm.value;
+              }
+            } catch { /* fall back to linear-qty on any spot-metadata error */ }
 
-        // Spot market order, then attach protective TP/SL as conditional orders.
-        const entryOrder = await placeSpotMarketOrder(
-          { apiKey, apiSecret },
-          { symbol: idea.symbol, side, qty: spotQty, orderLinkId },
-        );
-
-        // A market buy settles asynchronously: wait for the base coin to land on
-        // the spot balance before placing the protective SELL orders, otherwise
-        // Bybit rejects them with 170131 Insufficient balance.
-        const baseCoin = idea.symbol.replace(/USDT$/, '');
-        await waitForSpotBalance({ apiKey, apiSecret }, { coin: baseCoin });
-
-        // Stop-loss (sell when price falls to stop) + take-profit (sell when rises to TP).
-        const slDirection = idea.side === 'LONG' ? '2' : '1';
-        const tpDirection = idea.side === 'LONG' ? '1' : '2';
-        const closeSide = side === 'Buy' ? 'Sell' : 'Buy';
-        const slErrors = [];
-        let slId = null, tpId = null;
-        try {
-          slId = await placeSpotConditionalOrder(
-            { apiKey, apiSecret },
-            { symbol: idea.symbol, side: closeSide, qty: spotQty, triggerPrice: p.stopLossStr, triggerDirection: slDirection, orderLinkId: `${orderLinkId}-sl` },
-          );
-        } catch (e) { slErrors.push(`Стоп-лосс: ${e instanceof Error ? e.message : String(e)}`); }
-        try {
-          tpId = await placeSpotConditionalOrder(
-            { apiKey, apiSecret },
-            { symbol: idea.symbol, side: closeSide, qty: spotQty, triggerPrice: p.takeProfitStr, triggerDirection: tpDirection, orderLinkId: `${orderLinkId}-tp` },
-          );
-        } catch (e) { slErrors.push(`Тейк-профит: ${e instanceof Error ? e.message : String(e)}`); }
-
-        log.execute('spot order placed', { symbol: idea.symbol, side: idea.side, qty: spotQty, notionalUsd: notional, entryOrderId: entryOrder.orderId, slOrderId: slId?.orderId ?? null, tpOrderId: tpId?.orderId ?? null, slErrors });
-        const slWarn = slErrors.length
-          ? `\n\n⚠️ <b>Внимание:</b> защитные ордера НЕ поставлены:\n· ${slErrors.join('\n· ')}\n\nБот купил актив, но без стопа/тейка. Проверь вручную!`
-          : '';
-        resultMsg = buildResultCard(idea, sizing, { entry: p.live.lastPrice, mode: 'spot', orderId: entryOrder.orderId, stopLoss: p.stopLossStr, takeProfit: p.takeProfitStr, diffPct: Math.abs(p.live.lastPrice - p.proposedEntry) / p.proposedEntry * 100, qty: spotQty, notionalUsd: notional }) + slWarn;
-      } else {
-        // Futures → set leverage explicitly, then place.
-        const lev = p.leverage ?? '1';
-        try {
-          await setLeverage({ apiKey, apiSecret }, { symbol: idea.symbol, leverage: lev });
-        } catch (levErr) {
-          const msg = levErr instanceof Error ? levErr.message : String(levErr);
-          if (msg.includes('110043') || msg.includes('110077')) {
-            // 110043 = leverage already equals the requested value.
-            // 110077 = Portfolio Margin — exchange sizes leverage itself.
-            // Neither is a real error; proceed to place the order.
-          } else {
-            throw new Error(`Не удалось выставить плечо ${lev}×. ${msg}\n\nЭто значит биржа не применила плечо — попробуй меньшее плечо или другую монету.`);
+            const spotPrice = p.live.lastPrice;
+            let notional = spotQtyNum * spotPrice;
+            // Raise to the exchange minimum order value (with a small buffer so a
+            // moving price can't dip it back under the limit mid-flight).
+            if (Number.isFinite(spotMinOrderAmt) && spotMinOrderAmt > 0 && notional < spotMinOrderAmt) {
+              const targetQty = spotMinOrderAmt * 1.02 / spotPrice;
+              if (Number.isFinite(spotQtyStep) && spotQtyStep > 0) {
+                const norm = normalizeQuantity(targetQty, spotQtyStep);
+                if (norm.ok && norm.value !== null) {
+                  spotQtyNum = norm.value;
+                  notional = spotQtyNum * spotPrice;
+                }
+              } else {
+                spotQtyNum = targetQty;
+              }
+            }
+            spotQty = String(spotQtyNum);
+            return {};
           }
-        }
 
-        const thresholds = loadApproveThresholds();
-        const decision = decideEntryMode({
-          entry: p.proposedEntry,
-          live: p.live.lastPrice,
-          slippagePct: thresholds.slippagePct,
-          refreshPct: thresholds.refreshPct,
-        });
+          const thresholds = loadApproveThresholds();
+          entryDecision = decideEntryMode({
+            entry: p.proposedEntry,
+            live: p.live.lastPrice,
+            slippagePct: thresholds.slippagePct,
+            refreshPct: thresholds.refreshPct,
+          });
+          if (entryDecision.action === 'reject') {
+            return {
+              abort: `⛔ Рынок ушёл слишком далеко (${entryDecision.diffPct.toFixed(2)}%) — сделка отменена. Запусти /trade заново.`,
+            };
+          }
+          return {};
+        },
+        // The exchange write itself.
+        effect: async () => {
+          if (type === 'spot') {
+            // Spot market order, then attach protective TP/SL as conditional orders.
+            const entryOrder = await placeSpotMarketOrder(
+              { apiKey, apiSecret },
+              { symbol: idea.symbol, side, qty: spotQty, orderLinkId },
+            );
 
-        if (decision.action === 'reject') {
-          await ctx.answerCallbackQuery({ text: 'Рынок ушёл — отменено' });
-          await ctx.reply(`⛔ Рынок ушёл слишком далеко (${decision.diffPct.toFixed(2)}%) — сделка отменена. Запусти /trade заново.`, { parse_mode: 'HTML' });
-          return;
-        }
+            // A market buy settles asynchronously: wait for the base coin to land on
+            // the spot balance before placing the protective SELL orders, otherwise
+            // Bybit rejects them with 170131 Insufficient balance.
+            const baseCoin = idea.symbol.replace(/USDT$/, '');
+            await waitForSpotBalance({ apiKey, apiSecret }, { coin: baseCoin });
 
-        const baseOrder = {
-          symbol: idea.symbol,
-          side,
-          qty: sizing.quantityStr,
-          orderLinkId,
-          stopLoss: p.stopLossStr,
-          takeProfit: p.takeProfitStr,
-          slTriggerBy: 'LastPrice',
-          tpTriggerBy: 'LastPrice',
-        };
-        const isLeveraged = Number(lev) > 1;
-        let order;
-        if (!isLeveraged) {
-          // 1x → place a limit order to avoid market slippage ambiguity.
-          const refreshedEntry = snapPrice(p.live.lastPrice, instrument.tickSize);
-          order = await placeLimitOrder({ apiKey, apiSecret }, { ...baseOrder, price: refreshedEntry });
-          log.execute('futures order placed (1x limit)', { symbol: idea.symbol, side: idea.side, lev, qty: sizing.quantityStr, price: refreshedEntry, orderId: order.orderId });
-          resultMsg = buildResultCard(idea, sizing, { entry: refreshedEntry, mode: `futures ${lev}× limit`, orderId: order.orderId, stopLoss: p.stopLossStr, takeProfit: p.takeProfitStr, diffPct: decision.diffPct });
-        } else {
+            // Stop-loss (sell when price falls to stop) + take-profit (sell when rises to TP).
+            const slDirection = idea.side === 'LONG' ? '2' : '1';
+            const tpDirection = idea.side === 'LONG' ? '1' : '2';
+            const closeSide = side === 'Buy' ? 'Sell' : 'Buy';
+            const slErrors = [];
+            let slId = null, tpId = null;
+            try {
+              slId = await placeSpotConditionalOrder(
+                { apiKey, apiSecret },
+                { symbol: idea.symbol, side: closeSide, qty: spotQty, triggerPrice: p.stopLossStr, triggerDirection: slDirection, orderLinkId: `${orderLinkId}-sl` },
+              );
+            } catch (e) { slErrors.push(`Стоп-лосс: ${e instanceof Error ? e.message : String(e)}`); }
+            try {
+              tpId = await placeSpotConditionalOrder(
+                { apiKey, apiSecret },
+                { symbol: idea.symbol, side: closeSide, qty: spotQty, triggerPrice: p.takeProfitStr, triggerDirection: tpDirection, orderLinkId: `${orderLinkId}-tp` },
+              );
+            } catch (e) { slErrors.push(`Тейк-профит: ${e instanceof Error ? e.message : String(e)}`); }
+
+            const notional = Number(spotQty) * p.live.lastPrice;
+            log.execute('spot order placed', { symbol: idea.symbol, side: idea.side, qty: spotQty, notionalUsd: notional, entryOrderId: entryOrder.orderId, slOrderId: slId?.orderId ?? null, tpOrderId: tpId?.orderId ?? null, slErrors });
+            const slWarn = slErrors.length
+              ? `\n\n⚠️ <b>Внимание:</b> защитные ордера НЕ поставлены:\n· ${slErrors.join('\n· ')}\n\nБот купил актив, но без стопа/тейка. Проверь вручную!`
+              : '';
+            return {
+              resultMsg: buildResultCard(idea, sizing, { entry: p.live.lastPrice, mode: 'spot', orderId: entryOrder.orderId, stopLoss: p.stopLossStr, takeProfit: p.takeProfitStr, diffPct: Math.abs(p.live.lastPrice - p.proposedEntry) / p.proposedEntry * 100, qty: spotQty, notionalUsd: notional }) + slWarn,
+              orderId: entryOrder.orderId,
+            };
+          }
+
+          const lev = p.leverage ?? '1';
+          const decision = entryDecision ?? {
+            diffPct: Math.abs(p.live.lastPrice - p.proposedEntry) / p.proposedEntry * 100,
+          };
+          const baseOrder = {
+            symbol: idea.symbol,
+            side,
+            qty: sizing.quantityStr,
+            orderLinkId,
+            stopLoss: p.stopLossStr,
+            takeProfit: p.takeProfitStr,
+            slTriggerBy: 'LastPrice',
+            tpTriggerBy: 'LastPrice',
+          };
+          const isLeveraged = Number(lev) > 1;
+          let order;
+          if (!isLeveraged) {
+            // 1x → place a limit order to avoid market slippage ambiguity.
+            const refreshedEntry = snapPrice(p.live.lastPrice, instrument.tickSize);
+            order = await placeLimitOrder({ apiKey, apiSecret }, { ...baseOrder, price: refreshedEntry });
+            log.execute('futures order placed (1x limit)', { symbol: idea.symbol, side: idea.side, lev, qty: sizing.quantityStr, price: refreshedEntry, orderId: order.orderId });
+            return {
+              resultMsg: buildResultCard(idea, sizing, { entry: refreshedEntry, mode: `futures ${lev}× limit`, orderId: order.orderId, stopLoss: p.stopLossStr, takeProfit: p.takeProfitStr, diffPct: decision.diffPct }),
+              orderId: order.orderId,
+            };
+          }
           order = await placeMarketOrder({ apiKey, apiSecret }, baseOrder);
           log.execute('futures order placed (market)', { symbol: idea.symbol, side: idea.side, lev, qty: sizing.quantityStr, live: p.live.lastPrice, orderId: order.orderId });
-          resultMsg = buildResultCard(idea, sizing, { entry: String(p.live.lastPrice), mode: `futures ${lev}× market`, orderId: order.orderId, stopLoss: p.stopLossStr, takeProfit: p.takeProfitStr, diffPct: decision.diffPct });
-        }
+          return {
+            resultMsg: buildResultCard(idea, sizing, { entry: String(p.live.lastPrice), mode: `futures ${lev}× market`, orderId: order.orderId, stopLoss: p.stopLossStr, takeProfit: p.takeProfitStr, diffPct: decision.diffPct }),
+            orderId: order.orderId,
+          };
+        },
+      });
+
+      if (outcome && outcome.aborted) {
+        preview.delete(previewId);
+        await ctx.answerCallbackQuery({ text: 'Рынок ушёл — отменено' });
+        await ctx.reply(outcome.aborted, { parse_mode: 'HTML' });
+        return;
       }
 
       await ctx.answerCallbackQuery({ text: 'Ордер поставлен' });
-      await ctx.reply(resultMsg, { parse_mode: 'HTML' });
+      await ctx.reply(outcome.resultMsg, { parse_mode: 'HTML' });
       preview.delete(previewId); // only drop the ticket AFTER a successful order
     } catch (error) {
+      if (error instanceof UnknownEffectOutcome) {
+        // The order may be live. Never retry; the operator reconciles and AI
+        // stays unable to acknowledge quiescence until then.
+        preview.delete(previewId);
+        log.execute('order outcome unknown', { symbol: idea.symbol, lane: error.lane, error: error.cause instanceof Error ? error.cause.message : String(error.cause ?? error.message) });
+        await ctx.answerCallbackQuery({ text: 'Неизвестный исход ордера' }).catch(() => {});
+        await ctx.reply(
+          `⚠️ Биржа не подтвердила исход ордера по <code>${escapeHtml(idea.symbol)}</code>: ответ потерян.\n\n<b>Не повторяй ввод.</b> Проверь позицию в Bybit вручную — бот не будет считать себя готовым к переключению поколения модели, пока исход не сверен.`,
+          { parse_mode: 'HTML' },
+        );
+        return;
+      }
       log.execute('order failed', { symbol: idea.symbol, error: error instanceof Error ? error.message : String(error) });
       const raw = error instanceof Error ? error.message : String(error);
       let friendly = raw;
@@ -915,11 +1089,12 @@ async function main() {
       // without re-running /trade and burning tokens.
       await ctx.answerCallbackQuery({ text: 'Ошибка исполнения' });
       await ctx.reply(
-        `❌ Не удалось поставить ордер: ${friendly}\n\nМожно выбрать другую монету в списке идей или нажать /trade заново.`,
+        `❌ Не удалось поставить ордер: ${friendly}\n\nМожно выбрать другую монету из списка идей или нажать /trade заново.`,
         { parse_mode: 'HTML' },
       );
     }
   });
+
 
   function buildResultCard(idea, sizing, { entry, mode, orderId, stopLoss, takeProfit, diffPct, qty, notionalUsd }) {
     const finalQty = qty ?? sizing.quantityStr;
@@ -939,6 +1114,7 @@ async function main() {
   bot.callbackQuery(/^cancel:(.+)$/, async (ctx) => {
     const previewId = ctx.match[1];
     preview.delete(previewId);
+    aiEffects.drop(previewEffectKey(previewId));
     await ctx.answerCallbackQuery({ text: 'Отменено' });
     await ctx.reply('❌ Сделка отменена тобой. Бот ничего не ставил.');
   });
@@ -946,6 +1122,7 @@ async function main() {
   bot.callbackQuery(/^decline:(.+):(\d+)$/, async (ctx) => {
     const key = `${ctx.match[1]}:${ctx.match[2]}`;
     pending.delete(key);
+    aiComposition?.dropPendingApproval(key);
     await ctx.answerCallbackQuery({ text: 'Отклонено' });
   });
 
@@ -998,6 +1175,13 @@ async function main() {
   // Lazily-created reflector for post-close analysis.
   let reflector = null;
   function getReflector() {
+    if (aiRuntimeMode === 'single') {
+      // The reflector rides the same participant binding: REFLECT is admitted
+      // and fenced exactly like the other four operations.
+      return {
+        reflect: (trade) => (aiComposition === null ? Promise.resolve(null) : aiComposition.reflect(trade)),
+      };
+    }
     if (reflector === null) {
       // The reflector is a cheap post-mortem task, so it rides the SCOUT provider
       // (fast/cheap) rather than the guard's reasoning model.
@@ -1059,7 +1243,7 @@ async function main() {
 
   // Reusable low-level completion for the monitor, using the guard model.
   async function monitorComplete(prompt) {
-    const content = await getChat()._completeGuard(prompt);
+    const content = await getChat()._completeGuard(prompt, { operation: 'MONITOR' });
     const parsed = parseMonitorResponse(content);
     return { parsed, raw: content };
   }
@@ -1306,7 +1490,21 @@ async function main() {
           candles: compact,
         };
         const prompt = buildMonitorPrompt({ position: { ...pos, markPrice, avgPrice }, market, newsText });
-        const review = await monitorComplete(prompt);
+        // The review and the exit proposal it produces live in one counted scope:
+        // an EXIT proposal carries the generation that issued it as a pending
+        // effect sidecar, so its close button cannot fire under another one.
+        const review = await aiEffects.workflow('MONITOR', async (work) => {
+          const outcome = await monitorComplete(prompt);
+          if (outcome.parsed.ok && outcome.parsed.value.action === 'EXIT' && notifyChatId) {
+            const pid = `exit-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            exitProposals.set(pid, { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: outcome.parsed.value.reason, aiDerived: work !== null });
+            if (work !== null) {
+              work.rearm(exitEffectKey(pid), { operation: 'MONITOR', purpose: 'exit' });
+            }
+            return { ...outcome, proposalId: pid };
+          }
+          return outcome;
+        });
         if (!review.parsed.ok) {
           log.guard('monitor parse error', { symbol: pos.symbol, issues: review.parsed.issues });
           continue;
@@ -1314,12 +1512,10 @@ async function main() {
         const decision = review.parsed.value;
         log.guard('monitor verdict', { symbol: pos.symbol, kind: pos.kind, side: pos.side, action: decision.action, reason: decision.reason });
 
-        if (decision.action === 'EXIT' && notifyChatId) {
-          const pid = `exit-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-          exitProposals.set(pid, { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: decision.reason });
+        if (review.proposalId) {
           const keyboard = new InlineKeyboard()
-            .text('✅ Закрыть', `doexit:${pid}`)
-            .text('❌ Оставить', `keepexit:${pid}`);
+            .text('✅ Закрыть', `doexit:${review.proposalId}`)
+            .text('❌ Оставить', `keepexit:${review.proposalId}`);
           await bot.api.sendMessage(
             notifyChatId,
             [
@@ -1399,111 +1595,127 @@ async function main() {
       ...spots.map((s) => ({ symbol: s.symbol, side: 'LONG' })),
     ];
 
-    // 2. scout ideas.
-    const api = getChat();
-    const scout = await api.generateIdeas(context);
-    const ideaCount = scout.parsed.ok && Array.isArray(scout.parsed.ideas) ? scout.parsed.ideas.length : 0;
-    if (!scout.parsed.ok || ideaCount === 0) {
-      if (report) await notifyUser(`🔍 Авто-скан: проверено монет ${context.symbols.length}, скаут дал 0 идей — входа нет.`);
-      return;
-    }
-
-    // 3. precheck + guard each idea (with sentiment) in parallel; pick the best survivors.
-    const survivors = [];
-    const rejectedCount = [];
-    await Promise.all(
-      scout.parsed.ideas.map(async (idea) => {
-        const pre = precheckIdea(idea, context);
-        if (!pre.pass) {
-          log.guard('autotrade precheck rejected', { symbol: idea.symbol, side: idea.side, reasons: pre.reasons });
-          rejectedCount.push(`${idea.symbol} ${idea.side} (precheck: ${pre.reasons[0]})`);
-          return;
-        }
-        let sentimentText = null;
-        try {
-          const sent = await fetchMarketSentiment(idea.symbol);
-          if (fng && Number.isFinite(fng.value)) {
-            sent.fearGreed = fng.value;
-            sent.fearGreedClass = fng.classification ?? null;
-          }
-          sentimentText = formatSentiment(sent);
-        } catch { }
-        const guard = await api.filterIdea(idea, contextForIdea(context, idea.symbol), { sentiment: sentimentText, news: context.news ?? null });
-        if (guard.parsed.ok && guard.parsed.value.verdict === 'APPROVED') {
-          const conf = guard.parsed.value.confidence;
-          if (conf >= AUTO_CONFIDENCE) {
-            survivors.push({ idea, verdict: guard.parsed.value, confidence: conf });
-          } else {
-            rejectedCount.push(`${idea.symbol} ${idea.side} (качество ${Math.round(conf * 100)}% < 75%)`);
-          }
-        } else {
-          rejectedCount.push(`${idea.symbol} ${idea.side} (гвард отклонил)`);
-        }
-      }),
-    );
-    if (survivors.length === 0) {
-      console.error(`[autotrade] no setup ≥ ${AUTO_CONFIDENCE}`);
-      if (report) {
-        const rejTxt = rejectedCount.length ? '\n\nОтклонено: ' + rejectedCount.slice(0, 6).map((s) => escapeHtml(s)).join(', ') + (rejectedCount.length > 6 ? ` +${rejectedCount.length - 6}` : '') : '';
-        await notifyUser(`🔍 Авто-скан: проверено монет ${context.symbols.length}, идей ${ideaCount}.\nНет сетапа с качеством ≥ ${Math.round(AUTO_CONFIDENCE * 100)}% — входа нет.${rejTxt}`);
+    // The scan is one AI workflow: the counted scope opens before the Scout call
+    // and closes after the unattended entry it produces, so a generation switch
+    // between the verdict and the order cannot dispatch under old provenance.
+    let ideaCount = 0;
+    let survivorCount = 0;
+    /** @type {any} */
+    let autoEntry = null;
+    await aiEffects.workflow('SCOUT', async (scanWork) => {
+      // 2. scout ideas.
+      const api = getChat();
+      const scout = await api.generateIdeas(context);
+      ideaCount = scout.parsed.ok && Array.isArray(scout.parsed.ideas) ? scout.parsed.ideas.length : 0;
+      if (!scout.parsed.ok || ideaCount === 0) {
+        if (report) await notifyUser(`🔍 Авто-скан: проверено монет ${context.symbols.length}, скаут дал 0 идей — входа нет.`);
+        return;
       }
-      return;
-    }
-    // Best by confidence.
-    survivors.sort((a, b) => b.confidence - a.confidence);
-    const pick = survivors[0];
-
-    // 4. size with 1% risk.
-    const snapForIdea = context.symbols.find((s) => s.symbol === pick.idea.symbol);
-    const instrument = snapForIdea?.instrument ?? null;
-    if (!instrument || !Number.isFinite(instrument.qtyStep)) {
-      if (report) await notifyUser('⚠️ Нет грида инструмента для выбранного сетапа — пропуск.');
-      return;
-    }
-    const wallet = await fetchWalletBalance(apiKey, apiSecret);
-    if (!Number.isFinite(wallet.equityUsd) || wallet.equityUsd <= 0) {
-      if (report) await notifyUser('⚠️ Не удалось прочитать баланс — пропуск.');
-      return;
-    }
-    const sizing = sizePosition({ idea: pick.idea, instrument, wallet, riskPct: AUTO_RISK_PCT });
-    if (!sizing.approved) {
-      log.guard('autotrade size rejected', { symbol: pick.idea.symbol, reason: sizing.reason });
-      if (report) await notifyUser(`⚠️ Размер отклонён риск-движком: ${sizing.reason}`);
-      return;
-    }
-
-    // 5. Re-check live price drift before unattended entry.
-    const liveNow = await getCurrentPrice(pick.idea.symbol);
-    const { slippagePct, refreshPct } = loadApproveThresholds();
-    const gate = shouldSkipAutoEntry({ idea: pick.idea, live: liveNow.lastPrice, slippagePct, refreshPct });
-    if (gate.skip) {
-      log.guard('autotrade entry skipped', { symbol: pick.idea.symbol, reason: gate.reason });
-      if (report) await notifyUser(`⏸ Авто-вход пропущен: ${gate.reason} (${escapeHtml(pick.idea.symbol)}).`);
-      return;
-    }
-
-    // 6. place futures market order with SL/TP (futures: set leverage skipped in PM).
-    const side = pick.idea.side === 'LONG' ? 'Buy' : 'Sell';
-    const order = await placeMarketOrder(
-      { apiKey, apiSecret },
-      {
-        symbol: pick.idea.symbol,
-        side,
-        qty: sizing.quantityStr,
-        orderLinkId: `auto-${Date.now()}`,
-        stopLoss: snapPrice(pick.idea.stopLoss, instrument.tickSize),
-        takeProfit: snapPrice(pick.idea.takeProfit, instrument.tickSize),
-        slTriggerBy: 'LastPrice',
-        tpTriggerBy: 'LastPrice',
-      },
-    );
-    log.execute('autotrade entered', { symbol: pick.idea.symbol, side: pick.idea.side, confidence: pick.confidence, qty: sizing.quantityStr, riskUsd: sizing.riskAmountUsd, orderId: order.orderId });
-    // Record that the auto-trader opened this symbol so its cap counts only
-    // auto-entries, not the human's manual positions.
-    autoOpenedSymbols.add(pick.idea.symbol);
-    await persistState();
+  
+      // 3. precheck + guard each idea (with sentiment) in parallel; pick the best survivors.
+      const survivors = [];
+      const rejectedCount = [];
+      await Promise.all(
+        scout.parsed.ideas.map(async (idea) => {
+          const pre = precheckIdea(idea, context);
+          if (!pre.pass) {
+            log.guard('autotrade precheck rejected', { symbol: idea.symbol, side: idea.side, reasons: pre.reasons });
+            rejectedCount.push(`${idea.symbol} ${idea.side} (precheck: ${pre.reasons[0]})`);
+            return;
+          }
+          let sentimentText = null;
+          try {
+            const sent = await fetchMarketSentiment(idea.symbol);
+            if (fng && Number.isFinite(fng.value)) {
+              sent.fearGreed = fng.value;
+              sent.fearGreedClass = fng.classification ?? null;
+            }
+            sentimentText = formatSentiment(sent);
+          } catch { }
+          const guard = await api.filterIdea(idea, contextForIdea(context, idea.symbol), { sentiment: sentimentText, news: context.news ?? null });
+          if (guard.parsed.ok && guard.parsed.value.verdict === 'APPROVED') {
+            const conf = guard.parsed.value.confidence;
+            if (conf >= AUTO_CONFIDENCE) {
+              survivors.push({ idea, verdict: guard.parsed.value, confidence: conf });
+            } else {
+              rejectedCount.push(`${idea.symbol} ${idea.side} (качество ${Math.round(conf * 100)}% < 75%)`);
+            }
+          } else {
+            rejectedCount.push(`${idea.symbol} ${idea.side} (гвард отклонил)`);
+          }
+        }),
+      );
+      if (survivors.length === 0) {
+        console.error(`[autotrade] no setup ≥ ${AUTO_CONFIDENCE}`);
+        if (report) {
+          const rejTxt = rejectedCount.length ? '\n\nОтклонено: ' + rejectedCount.slice(0, 6).map((s) => escapeHtml(s)).join(', ') + (rejectedCount.length > 6 ? ` +${rejectedCount.length - 6}` : '') : '';
+          await notifyUser(`🔍 Авто-скан: проверено монет ${context.symbols.length}, идей ${ideaCount}.\nНет сетапа с качеством ≥ ${Math.round(AUTO_CONFIDENCE * 100)}% — входа нет.${rejTxt}`);
+        }
+        return;
+      }
+      // Best by confidence.
+      survivors.sort((a, b) => b.confidence - a.confidence);
+      survivorCount = survivors.length;
+      const pick = survivors[0];
+  
+      // 4. size with 1% risk.
+      const snapForIdea = context.symbols.find((s) => s.symbol === pick.idea.symbol);
+      const instrument = snapForIdea?.instrument ?? null;
+      if (!instrument || !Number.isFinite(instrument.qtyStep)) {
+        if (report) await notifyUser('⚠️ Нет грида инструмента для выбранного сетапа — пропуск.');
+        return;
+      }
+      const wallet = await fetchWalletBalance(apiKey, apiSecret);
+      if (!Number.isFinite(wallet.equityUsd) || wallet.equityUsd <= 0) {
+        if (report) await notifyUser('⚠️ Не удалось прочитать баланс — пропуск.');
+        return;
+      }
+      const sizing = sizePosition({ idea: pick.idea, instrument, wallet, riskPct: AUTO_RISK_PCT });
+      if (!sizing.approved) {
+        log.guard('autotrade size rejected', { symbol: pick.idea.symbol, reason: sizing.reason });
+        if (report) await notifyUser(`⚠️ Размер отклонён риск-движком: ${sizing.reason}`);
+        return;
+      }
+  
+      // 5. Re-check live price drift before unattended entry.
+      const liveNow = await getCurrentPrice(pick.idea.symbol);
+      const { slippagePct, refreshPct } = loadApproveThresholds();
+      const gate = shouldSkipAutoEntry({ idea: pick.idea, live: liveNow.lastPrice, slippagePct, refreshPct });
+      if (gate.skip) {
+        log.guard('autotrade entry skipped', { symbol: pick.idea.symbol, reason: gate.reason });
+        if (report) await notifyUser(`⏸ Авто-вход пропущен: ${gate.reason} (${escapeHtml(pick.idea.symbol)}).`);
+        return;
+      }
+  
+      // 6. place futures market order with SL/TP (futures: set leverage skipped in PM).
+      const side = pick.idea.side === 'LONG' ? 'Buy' : 'Sell';
+      const order = await aiEffects.dispatchInScope(scanWork, {
+        lane: 'autotrade-entry',
+        effect: () => placeMarketOrder(
+          { apiKey, apiSecret },
+          {
+            symbol: pick.idea.symbol,
+            side,
+            qty: sizing.quantityStr,
+            orderLinkId: `auto-${Date.now()}`,
+            stopLoss: snapPrice(pick.idea.stopLoss, instrument.tickSize),
+            takeProfit: snapPrice(pick.idea.takeProfit, instrument.tickSize),
+            slTriggerBy: 'LastPrice',
+            tpTriggerBy: 'LastPrice',
+          },
+        ),
+      });
+      log.execute('autotrade entered', { symbol: pick.idea.symbol, side: pick.idea.side, confidence: pick.confidence, qty: sizing.quantityStr, riskUsd: sizing.riskAmountUsd, orderId: order.orderId });
+      // Record that the auto-trader opened this symbol so its cap counts only
+      // auto-entries, not the human's manual positions.
+      autoOpenedSymbols.add(pick.idea.symbol);
+      await persistState();
+      autoEntry = { order, pick, sizing };
+    });
+    if (autoEntry === null) return;
+    const { order, pick, sizing } = autoEntry;
     const reportMsg = report
-      ? `Проверено монет: ${context.symbols.length} · Идей: ${ideaCount} · Выжило сетапов ≥ ${Math.round(AUTO_CONFIDENCE * 100)}%: ${survivors.length}\n\n`
+      ? `Проверено монет: ${context.symbols.length} · Идей: ${ideaCount} · Выжило сетапов ≥ ${Math.round(AUTO_CONFIDENCE * 100)}%: ${survivorCount}\n\n`
       : '';
     await notifyUser(
       `${reportMsg}🔔 <b>Авто-вход</b>: <code>${escapeHtml(pick.idea.symbol)}</code> ${pick.idea.side} (качество ${Math.round(pick.confidence * 100)}%)\nПочему: ${escapeHtml(String(pick.idea.rationale || 'сильный сетап'))}\nВход: ${pick.idea.entry}, Стоп: ${pick.idea.stopLoss}, Тейк: ${pick.idea.takeProfit}\nРиск: $${sizing.riskAmountUsd.toFixed(2)}\nOrder ID: <code>${order.orderId}</code>`,
@@ -1579,7 +1791,7 @@ async function main() {
 
       for (const pos of all) {
         const pid = `ord-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        exitProposals.set(pid, { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: 'manual /orders close' });
+        exitProposals.set(pid, { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: 'manual /orders close', aiDerived: false });
 
         let card;
         if (pos.kind === 'linear') {
@@ -1759,54 +1971,74 @@ async function main() {
           candles: item.compact,
         };
         const prompt = buildStopcheckPrompt({ position: pos, market, newsText });
-        const content = await getChat()._completeGuard(prompt);
-        const parsed = parseStopcheckResponse(content);
-        if (!parsed.ok) {
-          log.guard('stopcheck parse error', { symbol: pos.symbol, issues: parsed.issues });
-          results.push({ pos, action: 'PARSE_ERROR', reason: parsed.issues.join('; ') });
-          continue;
-        }
-        const decision = parsed.value;
-        log.guard('stopcheck verdict', { symbol: pos.symbol, kind: pos.kind, side: pos.side, action: decision.action, reason: decision.reason });
+        // The verdict and every effect derived from it run inside one counted
+        // scope: the close dispatch is checked against the control record
+        // immediately before it runs, and a QUIESCED acknowledgement is
+        // impossible while the close is in flight.
+        await aiEffects.workflow('STOPCHECK', async (work) => {
+          const content = await getChat()._completeGuard(prompt, { operation: 'STOPCHECK' });
+          const parsed = parseStopcheckResponse(content);
+          if (!parsed.ok) {
+            log.guard('stopcheck parse error', { symbol: pos.symbol, issues: parsed.issues });
+            results.push({ pos, action: 'PARSE_ERROR', reason: parsed.issues.join('; ') });
+            return;
+          }
+          const decision = parsed.value;
+          log.guard('stopcheck verdict', { symbol: pos.symbol, kind: pos.kind, side: pos.side, action: decision.action, reason: decision.reason });
 
-        const action = decideStopcheckAction({ llmAction: decision.action, lossMeaningful: item.lossMeaningful, trendAgainst: item.trendAgainst });
-        if (action === 'AUTO_CLOSE') {
-          closeCount++;
-          try {
-            const order = await closePosition({ symbol: pos.symbol, side: pos.side, kind: pos.kind, size: pos.size });
-            log.execute('stopcheck auto-closed', { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: decision.reason, confidence: decision.confidence, lossMeaningful: item.lossMeaningful, trendBias: item.trendAgainst ? 'against' : 'neutral', orderId: order.orderId });
-            results.push({ pos, action: 'AUTO_CLOSED', reason: decision.reason });
-            if (notifyChatId) {
-              await notifyUser(`🛑 <b>Авто-закрыл</b> <code>${escapeHtml(pos.symbol)}</code> ${pos.side}:\nКод: убыток + тренд против, модель: CLOSE\n${escapeHtml(decision.reason)}`);
+          const action = decideStopcheckAction({ llmAction: decision.action, lossMeaningful: item.lossMeaningful, trendAgainst: item.trendAgainst });
+          if (action === 'AUTO_CLOSE') {
+            closeCount++;
+            try {
+              const order = await aiEffects.dispatchInScope(work, {
+                lane: 'stopcheck-auto-close',
+                effect: () => closePosition({ symbol: pos.symbol, side: pos.side, kind: pos.kind, size: pos.size }),
+              });
+              log.execute('stopcheck auto-closed', { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: decision.reason, confidence: decision.confidence, lossMeaningful: item.lossMeaningful, trendBias: item.trendAgainst ? 'against' : 'neutral', orderId: order.orderId });
+              results.push({ pos, action: 'AUTO_CLOSED', reason: decision.reason });
+              if (notifyChatId) {
+                await notifyUser(`🛑 <b>Авто-закрыл</b> <code>${escapeHtml(pos.symbol)}</code> ${pos.side}:\nКод: убыток + тренд против, модель: CLOSE\n${escapeHtml(decision.reason)}`);
+              }
+            } catch (closeErr) {
+              if (closeErr instanceof UnknownEffectOutcome) {
+                log.execute('stopcheck auto-close outcome unknown', { symbol: pos.symbol, error: closeErr.cause instanceof Error ? closeErr.cause.message : String(closeErr.cause ?? closeErr.message) });
+                results.push({ pos, action: 'CLOSE_OUTCOME_UNKNOWN', reason: 'биржа не подтвердила исход закрытия — сверь позицию вручную, повторять не нужно' });
+                if (notifyChatId) {
+                  await notifyUser(`⚠️ <b>Исход авто-закрытия неизвестен</b> <code>${escapeHtml(pos.symbol)}</code> ${pos.side}.\nПроверь позицию в Bybit вручную. Бот не будет готов к переключению поколения модели, пока исход не сверен.`);
+                }
+                return;
+              }
+              log.execute('stopcheck auto-close failed', { symbol: pos.symbol, error: closeErr instanceof Error ? closeErr.message : String(closeErr) });
+              results.push({ pos, action: 'CLOSE', reason: `авто-закрытие не удалось: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}` });
             }
-          } catch (closeErr) {
-            log.execute('stopcheck auto-close failed', { symbol: pos.symbol, error: closeErr instanceof Error ? closeErr.message : String(closeErr) });
-            results.push({ pos, action: 'CLOSE', reason: `авто-закрытие не удалось: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}` });
+          } else if (action === 'PROPOSE_CLOSE') {
+            closeCount++;
+            results.push({ pos, action: 'CLOSE', reason: decision.reason });
+            if (notifyChatId) {
+              const pid = `exit-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+              exitProposals.set(pid, { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: decision.reason, aiDerived: work !== null });
+              if (work !== null) {
+                work.rearm(exitEffectKey(pid), { operation: 'STOPCHECK', purpose: 'exit' });
+              }
+              const keyboard = new InlineKeyboard()
+                .text('✅ Закрыть', `doexit:${pid}`)
+                .text('❌ Оставить', `keepexit:${pid}`);
+              await bot.api.sendMessage(
+                notifyChatId,
+                [
+                  `🛑 <b>Stop-check: предлагаю закрыть</b> <code>${escapeHtml(pos.symbol)}</code> ${pos.side} (${pos.kind === 'spot' ? 'спот' : 'фьючерс'})`,
+                  `Причина: ${escapeHtml(decision.reason)}`,
+                  `Цена: <code>${pos.markPrice}</code>`,
+                  '',
+                  'Закрыть?',
+                ].join('\n'),
+                { parse_mode: 'HTML', reply_markup: keyboard },
+              );
+            }
+          } else {
+            results.push({ pos, action: 'HOLD', reason: decision.reason });
           }
-        } else if (action === 'PROPOSE_CLOSE') {
-          closeCount++;
-          results.push({ pos, action: 'CLOSE', reason: decision.reason });
-          if (notifyChatId) {
-            const pid = `exit-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-            exitProposals.set(pid, { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: decision.reason });
-            const keyboard = new InlineKeyboard()
-              .text('✅ Закрыть', `doexit:${pid}`)
-              .text('❌ Оставить', `keepexit:${pid}`);
-            await bot.api.sendMessage(
-              notifyChatId,
-              [
-                `🛑 <b>Stop-check: предлагаю закрыть</b> <code>${escapeHtml(pos.symbol)}</code> ${pos.side} (${pos.kind === 'spot' ? 'спот' : 'фьючерс'})`,
-                `Причина: ${escapeHtml(decision.reason)}`,
-                `Цена: <code>${pos.markPrice}</code>`,
-                '',
-                'Закрыть?',
-              ].join('\n'),
-              { parse_mode: 'HTML', reply_markup: keyboard },
-            );
-          }
-        } else {
-          results.push({ pos, action: 'HOLD', reason: decision.reason });
-        }
+        });
       } catch (error) {
         log.market('stopcheck pass error', { symbol: pos.symbol, error: error instanceof Error ? error.message : String(error) });
         results.push({ pos, action: 'ERROR', reason: error instanceof Error ? error.message : String(error) });
@@ -1936,6 +2168,23 @@ async function main() {
     const prop = exitProposals.get(pid);
     if (!prop) { await ctx.answerCallbackQuery({ text: 'Устарело' }).catch(() => {}); return; }
     exitProposals.delete(pid);
+
+    // An AI-proposed exit is an AI-derived effect: it needs the provenance of
+    // the generation that proposed it. A close the operator started from
+    // /orders (`aiDerived: false`) is an operator control and is not gated.
+    /** @type {any | null} */
+    let aiEffect = null;
+    if (prop.aiDerived && aiEffects.enabled) {
+      try {
+        aiEffect = aiEffects.consume(exitEffectKey(pid));
+      } catch (error) {
+        log.execute('exit refused: retired provenance', { symbol: prop.symbol, pid, code: error?.code ?? null });
+        await ctx.answerCallbackQuery({ text: 'Предложение устарело' }).catch(() => {});
+        await ctx.reply('⚠️ Это предложение о закрытии относится к прошлой генерации модели — закрывать не буду. Запусти /stopcheck заново.');
+        return;
+      }
+    }
+
     // Acknowledge the tap immediately: the close path below performs slow
     // exchange calls, and an answer that throws must never reach middleware.
     await ctx.answerCallbackQuery({ text: 'Закрываю…' }).catch(() => {});
@@ -1943,33 +2192,55 @@ async function main() {
     try {
       const apiKey = process.env.BYBIT_API_KEY;
       const apiSecret = process.env.BYBIT_API_SECRET;
-      // Read size from the matching holding/position.
-      const positions = await fetchOpenPositions({ apiKey, apiSecret }, WATCH_SYMBOLS);
-      const spot = await fetchSpotHoldings({ apiKey, apiSecret });
-      const pos = positions.find((p) => p.symbol === prop.symbol);
-      const spotPos = spot.find((s) => s.symbol === prop.symbol);
-
       const orderLinkId = `close-${Date.now()}`;
-      let order;
-      if (prop.kind === 'spot' || (!pos && spotPos)) {
-        // Spot close = market sell of the full base-coin balance.
-        const target = spotPos ?? { size: prop.size ?? 0 };
-        if (!target.size || Number(target.size) <= 0) { await ctx.reply('Спот-позиция уже закрыта (пустой баланс).'); return; }
-        // Snap quantity to the spot basePrecision (avoids 170137).
-        const qtyPrec = await fetchSpotQtyPrecision(prop.symbol);
-        const closeQty = qtyPrec !== null ? snapSpotQty(target.size, qtyPrec) : String(target.size);
-        order = await placeSpotMarketOrder(
-          { apiKey, apiSecret },
-          { symbol: prop.symbol, side: 'Sell', qty: closeQty, orderLinkId },
-        );
-      } else {
-        if (!pos) { await ctx.reply('Позиция уже закрыта.'); return; }
-        const closeSide = pos.side === 'LONG' ? 'Sell' : 'Buy';
-        order = await placeMarketOrder(
-          { apiKey, apiSecret },
-          { symbol: pos.symbol, side: closeSide, qty: String(pos.size), orderLinkId, stopLoss: undefined, takeProfit: undefined },
-        );
+      /** @type {any} */
+      let pos = null;
+      /** @type {any} */
+      let spotPos = null;
+      /** @type {string | null} */
+      let closeQty = null;
+
+      const outcome = await aiEffects.dispatch(aiEffect, {
+        lane: 'ai-exit',
+        // Read size from the matching holding/position.
+        prepare: async () => {
+          const positions = await fetchOpenPositions({ apiKey, apiSecret }, WATCH_SYMBOLS);
+          const spot = await fetchSpotHoldings({ apiKey, apiSecret });
+          pos = positions.find((p) => p.symbol === prop.symbol) ?? null;
+          spotPos = spot.find((s) => s.symbol === prop.symbol) ?? null;
+
+          if (prop.kind === 'spot' || (!pos && spotPos)) {
+            const target = spotPos ?? { size: prop.size ?? 0 };
+            if (!target.size || Number(target.size) <= 0) return { abort: 'Спот-позиция уже закрыта (пустой баланс).' };
+            // Snap quantity to the spot basePrecision (avoids 170137).
+            const qtyPrec = await fetchSpotQtyPrecision(prop.symbol);
+            closeQty = qtyPrec !== null ? snapSpotQty(target.size, qtyPrec) : String(target.size);
+            return {};
+          }
+          if (!pos) return { abort: 'Позиция уже закрыта.' };
+          return {};
+        },
+        effect: async () => {
+          if (prop.kind === 'spot' || (!pos && spotPos)) {
+            // Spot close = market sell of the full base-coin balance.
+            return placeSpotMarketOrder(
+              { apiKey, apiSecret },
+              { symbol: prop.symbol, side: 'Sell', qty: closeQty, orderLinkId },
+            );
+          }
+          const closeSide = pos.side === 'LONG' ? 'Sell' : 'Buy';
+          return placeMarketOrder(
+            { apiKey, apiSecret },
+            { symbol: pos.symbol, side: closeSide, qty: String(pos.size), orderLinkId, stopLoss: undefined, takeProfit: undefined },
+          );
+        },
+      });
+
+      if (outcome && outcome.aborted) {
+        await ctx.reply(outcome.aborted);
+        return;
       }
+      const order = outcome;
 
       log.execute('exit executed', { symbol: prop.symbol, side: prop.side, kind: prop.kind, orderId: order.orderId });
       // Post-close reflection (fires once per closed symbol).
@@ -1995,6 +2266,11 @@ async function main() {
       await ctx.answerCallbackQuery({ text: 'Закрываю' });
       await ctx.reply(`✅ Отправлен ордер на закрытие ${escapeHtml(prop.symbol)} (${prop.side}). Order ID: <code>${escapeHtml(order.orderId)}</code>`, { parse_mode: 'HTML' });
     } catch (error) {
+      if (error instanceof UnknownEffectOutcome) {
+        log.execute('exit outcome unknown', { symbol: prop.symbol, error: error.cause instanceof Error ? error.cause.message : String(error.cause ?? error.message) });
+        await ctx.reply(`⚠️ Биржа не подтвердила исход закрытия <code>${escapeHtml(prop.symbol)}</code>.\n\n<b>Не повторяй закрытие.</b> Проверь позицию в Bybit вручную — бот не будет считать себя готовым к переключению поколения модели, пока исход не сверен.`, { parse_mode: 'HTML' });
+        return;
+      }
       await ctx.answerCallbackQuery({ text: 'Ошибка' });
       await ctx.reply(`❌ Ошибка закрытия: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -2002,6 +2278,7 @@ async function main() {
 
   bot.callbackQuery(/^keepexit:(.+)$/, async (ctx) => {
     exitProposals.delete(ctx.match[1]);
+    aiEffects.drop(exitEffectKey(ctx.match[1]));
     await ctx.answerCallbackQuery({ text: 'Оставлено' });
   });
 

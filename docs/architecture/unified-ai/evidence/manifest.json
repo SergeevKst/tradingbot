@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": "uai-v1.1-rehearsal-1",
+  "providerId": "deepseek",
+  "modelId": "deepseek-chat",
+  "canonicalBaseUrl": "https://api.deepseek.com/v1",
+  "capabilityProfileId": "deepseek-unified-v1",
+  "capabilityProfileSha256": "54f69efa2811435fcba73b1e8c6f62e042238dadb9d04eca79f8b1e5b9715e7a"
+}
