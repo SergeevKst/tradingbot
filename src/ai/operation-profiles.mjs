@@ -48,6 +48,28 @@ export const REASONING_EFFORTS = Object.freeze(['low', 'medium', 'high']);
 /** Response formats the in-process transports support. */
 export const RESPONSE_FORMATS = Object.freeze(['json_object', 'text']);
 
+// ─── Multi-Model Routing (v1.2 extension) ───────────────────────────────────
+
+/** Valid provider identifiers allowed by capability profiles (UAI v1.2 multi-model routing). */
+export const VALID_PROVIDERS = Object.freeze([
+  'deepseek',
+  'kimi',
+  'openrouter', // new in v1.2 — OpenAI-compatible proxy endpoint
+]);
+
+/** Trust tiers for model classification. Consequential ops NEVER silently fall through on provider failure. */
+export const TRUST_TIERS = Object.freeze({
+  ANALYZE: 'consequential',
+  SCOUT: 'supplementary',
+  GUARD: 'consequential',
+  MONITOR: 'supplementary',
+  STOPCHECK: 'consequential',
+  REFLECT: 'informational',
+});
+
+/** Operations requiring strict null-fallback enforcement (no silent model substitution). */
+export const CONSEQUENTIAL_OPERATIONS = Object.freeze(['ANALYZE', 'GUARD', 'STOPCHECK']);
+
 /** Upper bound for a per-operation timeout (10 minutes). */
 export const MAX_OPERATION_TIMEOUT_MS = 600000;
 

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "registryId": "uai-multi-model-test-v1",
+  "models": {
+    "anthropic-opus": {
+      "providerId": "openrouter",
+      "modelId": "anthropic/claude-3-opus-4-20250514",
+      "canonicalBaseUrl": "https://openrouter.ai/api/v1",
+      "capabilityProfileId": "claude-opus-adversarial",
+      "capabilityProfileSha256": "aa11bb22cc33dd44ee55ff6600778899aabbccddeeff00112233445566778899",
+      "trustTier": "consequential"
+    },
+    "gpt-4o-mini": {
+      "providerId": "deepseek",
+      "modelId": "deepseek-chat",
+      "canonicalBaseUrl": "https://api.deepseek.com/v1",
+      "capabilityProfileId": "deepseek-unified-v1",
+      "capabilityProfileSha256": "bb22cc33dd44ee55ff66007788990011aabbccddeeff00112233445566778899aa",
+      "trustTier": "supplementary"
+    }
+  },
+  "routingTable": {
+    "ANALYZE": "anthropic-opus",
+    "SCOUT": "gpt-4o-mini",
+    "GUARD": "anthropic-opus",
+    "MONITOR": "gpt-4o-mini",
+    "STOPCHECK": "anthropic-opus",
+    "REFLECT": "gpt-4o-mini"
+  },
+  "fallbacks": {
+    "ANALYZE": null,
+    "SCOUT": "gpt-4o-mini",
+    "GUARD": null,
+    "MONITOR": null,
+    "STOPCHECK": null,
+    "REFLECT": null
+  }
+}

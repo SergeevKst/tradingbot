@@ -26,10 +26,11 @@ export const IDENTIFIER_PATTERN = /^[a-zA-Z0-9._-]{1,128}$/;
 /** Lowercase SHA-256 hex digest. */
 export const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 
-/** Host allowlist bound to the provider enum (architecture §4.1). */
+/** Host allowlist bound to the provider enum (architecture §4.1, extended by Multi-Model v1.2). */
 export const PROVIDER_HOST_ALLOWLIST = Object.freeze({
   deepseek: Object.freeze(['api.deepseek.com']),
   kimi: Object.freeze(['api.moonshot.ai', 'api.moonshot.cn']),
+  openrouter: Object.freeze(['openrouter.ai']),
 });
 
 /** Default identity port; any other explicit port is noncanonical. */

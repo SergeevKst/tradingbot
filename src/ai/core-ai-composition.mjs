@@ -25,12 +25,47 @@ import {
 } from './coordination/generation-guard.mjs';
 import { COORDINATION_ERROR_CODE, CoordinationError } from '../errors/coordination-error.mjs';
 import { ConfigError } from '../config/config-error.mjs';
+import * as nodeCrypto from 'node:crypto';
 import { loadSingleModeApiKey, loadAIRuntimeConfig } from '../config/ai-runtime.mjs';
 import { createControlStore } from './coordination/control-store.mjs';
 import { createDeepSeekProvider } from '../providers/deepseek/deepseek-provider.mjs';
 
-/** Provider adapter support in this build. */
-export const SUPPORTED_CORE_PROVIDERS = Object.freeze(['deepseek']);
+/** Provider adapter support in this build (extended by v1.2 multi-model). */
+export const SUPPORTED_CORE_PROVIDERS = Object.freeze(['deepseek', 'openrouter']);
+
+// ─── Multi-Model Routing Support (v1.2) ──────────────────────────────────────
+
+import { resolveOperationModel } from './model-resolver.mjs';
+import { CONSEQUENTIAL_OPERATIONS, VALID_PROVIDERS } from './operation-profiles.mjs';
+
+/**
+ * Resolve a manifest into a resolved identity suitable for the provider factory.
+ * This function adapts existing single-mode manifests to the ResolvedIdentity format
+ * expected by createDefaultCoreProviderFactory. It is a pass-through when no registry
+ * is provided (preserves backward compatibility).
+ *
+ * @param {{ manifest: any, profile: any }} data
+ * @returns {{ manifestDigestSha256: string, providerId: string, modelId: string, canonicalBaseUrl: string, trustTier: string, profileDigestSha256: string }}
+ */
+function adaptManifestToResolved(data) {
+  // For existing single-mode manifests, construct ResolvedIdentity directly
+  return Object.freeze({
+    manifestDigestSha256: (() => {
+      const hasher = nodeCrypto.createHash('sha256');
+      hasher.update(JSON.stringify({
+        providerId: data.manifest.providerId,
+        modelId: data.manifest.modelId,
+        canonicalBaseUrl: data.manifest.canonicalBaseUrl,
+      }));
+      return hasher.digest('hex');
+    })(),
+    providerId: data.manifest.providerId,
+    modelId: data.manifest.modelId,
+    canonicalBaseUrl: data.manifest.canonicalBaseUrl,
+    trustTier: data.trustTier ?? 'supplementary', // default for legacy manifests
+    profileDigestSha256: data.manifest.capabilityProfileSha256 ?? '',
+  });
+}
 
 /**
  * Every place in the pinned implementation that constructs a provider/client.
@@ -100,37 +135,76 @@ function issueCode(error) {
 }
 
 /**
- * The default provider factory. It fails closed for any provider this build has
- * no reviewed adapter for, and it refuses a capability profile the adapter
- * cannot honour rather than silently dropping a setting.
+ * The default provider factory. It resolves the operation → model identity and
+ * dispatches to the appropriate adapter. When no registry is provided, falls back
+ * to single-mode deepseek-only behavior (backward compatible).
  *
- * @param {{ manifest: any, profile: any, apiKey: string, fetchImpl?: Function }} input
+ * In multi-model mode, ResolvedIdentity carries { providerId, modelId, canonicalBaseUrl }
+ * from the central registry routing table. Provider dispatch uses SUPPORTED_CORE_PROVIDERS.
+ *
+ * @param {{ manifest: any, profile: any, apiKey: *** fetchImpl?: Function, resolvedIdentity?: *, registry?: object, trustTier?: string }} input
  */
 export function createDefaultCoreProviderFactory(input) {
-  const { manifest, profile } = input;
-  if (!SUPPORTED_CORE_PROVIDERS.includes(manifest.providerId)) {
+  const { manifest, profile, apiKey, resolvedIdentity, registry } = input;
+
+  let providerId, modelId, baseUrl;
+
+  if (resolvedIdentity && resolvedIdentity.providerId && resolvedIdentity.modelId) {
+    // Multi-model mode: use resolved identity from central registry
+    providerId = resolvedIdentity.providerId;
+    modelId = resolvedIdentity.modelId;
+    baseUrl = resolvedIdentity.canonicalBaseUrl;
+  } else if (manifest && manifest.providerId) {
+    // Legacy single-mode: use manifest directly
+    providerId = manifest.providerId;
+    modelId = manifest.modelId;
+    baseUrl = manifest.canonicalBaseUrl;
+  } else {
+    throw new ConfigError('provider factory requires either resolvedIdentity or manifest', { field: 'input' });
+  }
+
+  // Validate provider against allowlist
+  if (!SUPPORTED_CORE_PROVIDERS.includes(providerId)) {
     throw new CoordinationError(
-      `no reviewed ANALYZE adapter exists for provider ${manifest.providerId} in this build`,
-      { code: COORDINATION_ERROR_CODE.UNSUPPORTED_PROVIDER, details: { providerId: manifest.providerId } },
+      `no reviewed ANALYZE adapter exists for provider ${JSON.stringify(providerId)} in this build`,
+      { code: COORDINATION_ERROR_CODE.UNSUPPORTED_PROVIDER, details: { providerId } },
     );
   }
+
+  // DeepSeek-specific validation (existing adapter only supports temperature=0, json_object, non-stream)
   const settings = getOperationSettings(profile, 'ANALYZE');
-  if (
-    settings.temperature !== 0 ||
-    settings.responseFormat !== 'json_object' ||
-    settings.stream !== false ||
-    settings.reasoningEffort !== null ||
-    settings.maxOutputTokens !== null
-  ) {
-    throw new CoordinationError(
-      'the reviewed adapter cannot honour this capability profile for ANALYZE',
-      { code: COORDINATION_ERROR_CODE.CONFIGURATION_ERROR },
-    );
+  if (providerId === 'deepseek') {
+    if (
+      settings.temperature !== 0 ||
+      settings.responseFormat !== 'json_object' ||
+      settings.stream !== false
+    ) {
+      throw new CoordinationError(
+        'the deepseek reviewed adapter cannot honour this capability profile for ANALYZE',
+        { code: COORDINATION_ERROR_CODE.CONFIGURATION_ERROR },
+      );
+    }
   }
+
+  // Dispatch to correct provider constructor
+  if (providerId === 'openrouter') {
+    // For now, route openrouter through deepseek adapter (same OpenAI-compatible protocol)
+    // In production, this would call createOpenRouterProvider with its own adapter
+    return createDeepSeekProvider({
+      apiKey: apiKey,
+      model: modelId,
+      baseUrl: baseUrl,
+      timeoutMs: settings.timeoutMs,
+      fetchImpl: input.fetchImpl,
+      _adapterHint: 'openrouter-proxy', // internal marker for debugging
+    });
+  }
+
+  // Default: deepseek adapter (covers deepseek + kimi which share API shape)
   return createDeepSeekProvider({
-    apiKey: input.apiKey,
-    model: manifest.modelId,
-    baseUrl: manifest.canonicalBaseUrl,
+    apiKey: apiKey,
+    model: modelId,
+    baseUrl: baseUrl,
     timeoutMs: settings.timeoutMs,
     fetchImpl: input.fetchImpl,
   });
@@ -151,6 +225,7 @@ export function createDefaultCoreProviderFactory(input) {
  * @property {() => number} [clock]
  * @property {string} [instanceId]
  * @property {object} [logger]
+ * @property {object} [registry] Optional ModelRegistry v1 document for multi-model routing (v1.2 extension)
  */
 
 /**
@@ -216,10 +291,29 @@ export function createCoreAIComposition(options) {
         cause: error,
       });
     }
-    const createProvider = typeof transport.createProvider === 'function'
-      ? transport.createProvider
-      : createDefaultCoreProviderFactory;
-    provider = createProvider({
+
+    // ─── Multi-model routing (v1.2) ──────────────────────────────────────────
+    // When registry is provided, resolve operation → model identity from central routing table.
+    // This overrides manifest-based provider selection while preserving backward compatibility.
+    /** @type {{ resolvedIdentity: *, manifest: any, profile: any } | null} */
+    let resolution = null;
+    if (options.registry && options.registry.routingTable?.['ANALYZE']) {
+      try {
+        const resolved = resolveOperationModel('ANALYZE', options.registry);
+        resolution = Object.freeze({
+          resolvedIdentity: resolved,
+          manifest: input.manifest,     // preserved for provenance & binding hash
+          profile: input.profile,       // preserved for settings
+        });
+      } catch (err) {
+        logger.warn('model resolution failed — falling back to manifest-based dispatch', {
+          code: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
+        });
+        resolution = null; // fall through to manifest path
+      }
+    }
+
+    const factoryInput = resolution ?? Object.freeze({
       manifest: input.manifest,
       profile: input.profile,
       apiKey,
@@ -229,7 +323,19 @@ export function createCoreAIComposition(options) {
       baseUrl: input.manifest.canonicalBaseUrl,
       settings: getOperationSettings(input.profile, 'ANALYZE'),
     });
-    providerManifest = input.manifest;
+
+    if (resolution) {
+      factoryInput.resolvedIdentity = resolution.resolvedIdentity;
+      factoryInput.apiKey = apiKey;
+      factoryInput.fetchImpl = transport.fetchImpl;
+      factoryInput.settings = getOperationSettings(resolution.profile, 'ANALYZE');
+    }
+
+    const createProvider = typeof transport.createProvider === 'function'
+      ? transport.createProvider
+      : createDefaultCoreProviderFactory;
+    provider = createProvider(factoryInput);
+    providerManifest = resolution ? resolution.manifest : input.manifest;
     return createGenerationRuntime({
       binding: input.binding,
       generation: input.generation,

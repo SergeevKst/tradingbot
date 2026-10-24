@@ -27,6 +27,8 @@ import { loadAIRuntimeConfig, loadSingleModeApiKey } from '../config/ai-runtime.
 import { createDeepSeekChat } from './deepseek-client.mjs';
 import { createReflector } from './reflect.mjs';
 import { createControlStore } from '../ai/coordination/control-store.mjs';
+// ─── Multi-Model Routing Support (v1.2) ──────────────────────────────────────
+import { resolveOperationModel } from '../ai/model-resolver.mjs';
 
 /** Operations bound by this participant, in protocol order. */
 export const TELEGRAM_OPERATIONS = Object.freeze(['SCOUT', 'GUARD', 'MONITOR', 'STOPCHECK', 'REFLECT']);
@@ -120,27 +122,66 @@ export function createTelegramAIComposition(options) {
   let facade = null;
 
   /**
+   * ─── Multi-model routing helper (v1.2) ──────────────────────────────────────
+   * When options.registry exists, resolve the first consequential operation's
+   * model from the central table; fall back to SCOUT if none are consequential.
+   */
+  function getResolvedIdentity() {
+    if (!options.registry || !options.registry.routingTable) return null;
+    const slotOps = TELEGRAM_OPERATIONS;
+    // Prefer a consequential op's route (GUARD or STOPCHECK), else SCOUT
+    const chosenOp = ['GUARD', 'STOPCHECK', 'SCOUT', 'MONITOR', 'REFLECT', 'SCOUT']
+      .find(op => options.registry.routingTable?.[op]) ?? 'SCOUT';
+    try {
+      return Object.freeze(resolveOperationModel(chosenOp, options.registry));
+    } catch (err) {
+      logger.warn('telegram model resolution failed — falling back to manifest', {
+        code: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
+        attemptedOperation: chosenOp,
+      });
+      return null;
+    }
+  }
+
+  /**
    * @param {{ manifest: any, profile: any, binding: any, generation: number, target: boolean, slot: string, instanceId: string }} input
    */
   function runtimeFactory(input) {
     const settings = assertProfileSupportedByFacade(input.profile);
     const apiKey = apiKeyLoader();
-    const origin = transportOrigin(input.manifest);
+
+    // ─── Multi-model routing (v1.2) ──────────────────────────────────────────
+    // Resolve model from central registry; fall back to manifest if no registry or resolution fails.
+    /** @type {{ providerId: string, modelId: string, canonicalBaseUrl: string } | null} */
+    const resolved = getResolvedIdentity();
+    let providerId, modelId, baseUrl;
+    if (resolved && resolved.providerId && resolved.modelId) {
+      providerId = resolved.providerId;
+      modelId = resolved.modelId;
+      baseUrl = resolved.canonicalBaseUrl;
+    } else {
+      // Legacy single-mode: derive from manifest
+      providerId = input.manifest.providerId;
+      modelId = input.manifest.modelId;
+      baseUrl = (() => { const u = new URL(input.manifest.canonicalBaseUrl); return u.origin; })();
+    }
+
+    const origin = baseUrl;
     const timeoutMs = settings.SCOUT.timeoutMs;
     const createClient = typeof transport.createChatClient === 'function' ? transport.createChatClient : createDeepSeekChat;
     const createReflect = typeof transport.createReflector === 'function' ? transport.createReflector : createReflector;
     const client = createClient({
-      providerId: input.manifest.providerId,
-      scoutProvider: input.manifest.providerId,
-      guardProvider: input.manifest.providerId,
+      providerId,
+      scoutProvider: providerId,
+      guardProvider: providerId,
       baseUrl: origin,
       scoutBaseUrl: origin,
       guardBaseUrl: origin,
       apiKey,
-      deepseekApiKey: input.manifest.providerId === 'deepseek' ? apiKey : undefined,
-      kimiApiKey: input.manifest.providerId === 'kimi' ? apiKey : undefined,
-      model: input.manifest.modelId,
-      guardModel: input.manifest.modelId,
+      deepseekApiKey: providerId === 'deepseek' ? apiKey : undefined,
+      kimiApiKey: providerId === 'kimi' ? apiKey : undefined,
+      model: modelId,
+      guardModel: modelId,
       temperature: settings.SCOUT.temperature,
       scoutReasoningEffort: settings.SCOUT.reasoningEffort,
       guardReasoningEffort: settings.GUARD.reasoningEffort,
