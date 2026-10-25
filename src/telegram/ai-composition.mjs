@@ -196,9 +196,9 @@ export function createTelegramAIComposition(options) {
       providerId: scoutModel.providerId,
       scoutProvider: scoutModel.providerId,
       guardProvider: guardModel.providerId,
-      baseUrl: (() => { try { return scoutModel.canonicalBaseUrl; } catch { return input.manifest.canonicalBaseUrl; } })(),
-      scoutBaseUrl: scoutModel.canonicalBaseUrl,
-      guardBaseUrl: guardModel.canonicalBaseUrl,
+      baseUrl: transportOrigin(scoutModel),
+      scoutBaseUrl: transportOrigin(scoutModel),
+      guardBaseUrl: transportOrigin(guardModel),
       apiKey,
       deepseekApiKey: scoutModel.providerId === 'deepseek' ? apiKey : undefined,
       kimiApiKey: scoutModel.providerId === 'kimi' ? apiKey : undefined,
@@ -213,7 +213,7 @@ export function createTelegramAIComposition(options) {
     });
     const reflector = createReflect({
       apiKey,
-      baseUrl: (() => { try { return scoutModel.canonicalBaseUrl; } catch { return input.manifest.canonicalBaseUrl; } })(),
+      baseUrl: transportOrigin(scoutModel),
       model: reflectModel.modelId,
       timeoutMs: settings.REFLECT.timeoutMs,
       fetchImpl: transport.fetchImpl,

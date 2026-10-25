@@ -519,6 +519,9 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/ai/interface.mjs',
     'src/ai/mock-provider.mjs',
     'src/ai/operation-profiles.mjs',
+    'src/ai/model-resolver.mjs',
+    'src/config/ai-model-registry.mjs',
+
     'src/ai/prompts.mjs',
     'src/ai/runtime.mjs',
     'src/ai/types.mjs',
