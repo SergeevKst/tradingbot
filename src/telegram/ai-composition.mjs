@@ -121,27 +121,53 @@ export function createTelegramAIComposition(options) {
   /** @type {{ client: any, reflector: any, manifest: any, profile: any } | null} */
   let facade = null;
 
-  /**
-   * ─── Multi-model routing helper (v1.2) ──────────────────────────────────────
-   * When options.registry exists, resolve the first consequential operation's
-   * model from the central table; fall back to SCOUT if none are consequential.
-   */
-  function getResolvedIdentity() {
-    if (!options.registry || !options.registry.routingTable) return null;
-    const slotOps = TELEGRAM_OPERATIONS;
-    // Prefer a consequential op's route (GUARD or STOPCHECK), else SCOUT
-    const chosenOp = ['GUARD', 'STOPCHECK', 'SCOUT', 'MONITOR', 'REFLECT', 'SCOUT']
-      .find(op => options.registry.routingTable?.[op]) ?? 'SCOUT';
+
+  // Multi-model routing: build per-op resolution cache at compose init time
+  if (options.registry?.routingTable) {
     try {
-      return Object.freeze(resolveOperationModel(chosenOp, options.registry));
+      resolvedCache = buildPerOpResolution();
     } catch (err) {
-      logger.warn('telegram model resolution failed — falling back to manifest', {
-        code: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
-        attemptedOperation: chosenOp,
-      });
-      return null;
+      logger.warn('failed to build per-op model cache', { code: err instanceof CoordinationError ? err.code : 'CACHE_FAIL', registryId: options.registry?.registryId });
     }
   }
+
+  // ─── Per-operation multi-model routing cache (v1.2) ──────────────────────────
+  /** @type {{ models: Record<string, Readonly<{ providerId: string, modelId: string, canonicalBaseUrl: string, trustTier: string }> | null> | null }, fallbackManifest: object | null} */
+  let resolvedCache = null;
+
+  /** Build and cache resolved identities for ALL telegram operations. Each operation maps independently. */
+  function buildPerOpResolution() {
+    if (!options.registry?.routingTable) return null;
+    const models = {};
+    let fallbackManifest = null;
+    for (const operation of TELEGRAM_OPERATIONS) {
+      if (typeof operation !== 'string' || operation === '') continue;
+      const routeKey = options.registry.routingTable[operation];
+      if (!routeKey) continue;
+      try {
+        const resolved = resolveOperationModel(operation, options.registry);
+        models[operation] = resolved;
+      } catch (err) {
+        logger.warn(`per-op resolution failed for ${JSON.stringify(operation)} (${err instanceof CoordinationError ? err.code : 'unknown'})`, { registryId: options.registry.registryId, operation });
+        models[operation] = null;
+      }
+    }
+    return Object.freeze({ models, fallbackManifest });
+  }
+
+  /** Get resolved model identity for one specific telegram operation. Falls back to manifest. */
+  function getModelForOp(operation, bindingInput) {
+    const cached = resolvedCache?.models?.[operation];
+    if (cached && cached.providerId && cached.modelId && cached.canonicalBaseUrl) {
+      return Object.freeze(cached);
+    }
+    return Object.freeze({
+      providerId: bindingInput.manifest.providerId,
+      modelId: bindingInput.manifest.modelId,
+      canonicalBaseUrl: bindingInput.manifest.canonicalBaseUrl,
+    });
+  }
+
 
   /**
    * @param {{ manifest: any, profile: any, binding: any, generation: number, target: boolean, slot: string, instanceId: string }} input
@@ -149,39 +175,35 @@ export function createTelegramAIComposition(options) {
   function runtimeFactory(input) {
     const settings = assertProfileSupportedByFacade(input.profile);
     const apiKey = apiKeyLoader();
+    // ─── Per-operation model resolution (v1.2 multi-model routing) ────────
+    // Resolve EVERY telegram operation to its own model identity from the registry.
+    // Falls back to manifest identity when an operation lacks a registry entry.
+    const scoutModel = getModelForOp('SCOUT', input);
+    const guardModel = getModelForOp('GUARD', input);
+    const monitorModel = getModelForOp('MONITOR', input);
+    const stopcheckModel = getModelForOp('STOPCHECK', input);
+    const reflectModel = getModelForOp('REFLECT', input);
 
-    // ─── Multi-model routing (v1.2) ──────────────────────────────────────────
-    // Resolve model from central registry; fall back to manifest if no registry or resolution fails.
-    /** @type {{ providerId: string, modelId: string, canonicalBaseUrl: string } | null} */
-    const resolved = getResolvedIdentity();
-    let providerId, modelId, baseUrl;
-    if (resolved && resolved.providerId && resolved.modelId) {
-      providerId = resolved.providerId;
-      modelId = resolved.modelId;
-      baseUrl = resolved.canonicalBaseUrl;
-    } else {
-      // Legacy single-mode: derive from manifest
-      providerId = input.manifest.providerId;
-      modelId = input.manifest.modelId;
-      baseUrl = (() => { const u = new URL(input.manifest.canonicalBaseUrl); return u.origin; })();
-    }
+    // Determine if multi-model mode is active (different ops → different models)
+    const uniqueProviders = new Set([scoutModel.providerId, guardModel.providerId, monitorModel.providerId, stopcheckModel.providerId, reflectModel.providerId]);
+    const multiModelActive = uniqueProviders.size > 1 || !!resolvedCache;
 
-    const origin = baseUrl;
+
     const timeoutMs = settings.SCOUT.timeoutMs;
     const createClient = typeof transport.createChatClient === 'function' ? transport.createChatClient : createDeepSeekChat;
     const createReflect = typeof transport.createReflector === 'function' ? transport.createReflector : createReflector;
     const client = createClient({
-      providerId,
-      scoutProvider: providerId,
-      guardProvider: providerId,
-      baseUrl: origin,
-      scoutBaseUrl: origin,
-      guardBaseUrl: origin,
+      providerId: scoutModel.providerId,
+      scoutProvider: scoutModel.providerId,
+      guardProvider: guardModel.providerId,
+      baseUrl: (() => { try { return scoutModel.canonicalBaseUrl; } catch { return input.manifest.canonicalBaseUrl; } })(),
+      scoutBaseUrl: scoutModel.canonicalBaseUrl,
+      guardBaseUrl: guardModel.canonicalBaseUrl,
       apiKey,
-      deepseekApiKey: providerId === 'deepseek' ? apiKey : undefined,
-      kimiApiKey: providerId === 'kimi' ? apiKey : undefined,
-      model: modelId,
-      guardModel: modelId,
+      deepseekApiKey: scoutModel.providerId === 'deepseek' ? apiKey : undefined,
+      kimiApiKey: scoutModel.providerId === 'kimi' ? apiKey : undefined,
+      model: scoutModel.modelId,
+      guardModel: guardModel.modelId,
       temperature: settings.SCOUT.temperature,
       scoutReasoningEffort: settings.SCOUT.reasoningEffort,
       guardReasoningEffort: settings.GUARD.reasoningEffort,
@@ -191,8 +213,8 @@ export function createTelegramAIComposition(options) {
     });
     const reflector = createReflect({
       apiKey,
-      baseUrl: origin,
-      model: input.manifest.modelId,
+      baseUrl: (() => { try { return scoutModel.canonicalBaseUrl; } catch { return input.manifest.canonicalBaseUrl; } })(),
+      model: reflectModel.modelId,
       timeoutMs: settings.REFLECT.timeoutMs,
       fetchImpl: transport.fetchImpl,
     });
@@ -209,6 +231,7 @@ export function createTelegramAIComposition(options) {
       guard,
       clock,
       invoke: async ({ operation, request }) => {
+        const resolvedIdentity = getModelForOp(operation, facade);
         if (facade === null) {
           throw new CoordinationError('no admitted Telegram facade exists', {
             code: COORDINATION_ERROR_CODE.ACTIVATION_PAUSED,
