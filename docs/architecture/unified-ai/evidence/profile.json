@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "profileId": "deepseek-unified-v1",
+  "providerId": "deepseek",
+  "operations": {
+    "ANALYZE": {
+      "temperature": 0,
+      "reasoningEffort": null,
+      "maxOutputTokens": null,
+      "stream": false,
+      "responseFormat": "json_object",
+      "timeoutMs": 20000
+    },
+    "SCOUT": {
+      "temperature": 0.7,
+      "reasoningEffort": null,
+      "maxOutputTokens": null,
+      "stream": false,
+      "responseFormat": "json_object",
+      "timeoutMs": 60000
+    },
+    "GUARD": {
+      "temperature": 0,
+      "reasoningEffort": "low",
+      "maxOutputTokens": null,
+      "stream": false,
+      "responseFormat": "json_object",
+      "timeoutMs": 60000
+    },
+    "MONITOR": {
+      "temperature": 0,
+      "reasoningEffort": "low",
+      "maxOutputTokens": null,
+      "stream": false,
+      "responseFormat": "json_object",
+      "timeoutMs": 60000
+    },
+    "STOPCHECK": {
+      "temperature": 0,
+      "reasoningEffort": "low",
+      "maxOutputTokens": null,
+      "stream": false,
+      "responseFormat": "json_object",
+      "timeoutMs": 60000
+    },
+    "REFLECT": {
+      "temperature": 0,
+      "reasoningEffort": null,
+      "maxOutputTokens": null,
+      "stream": false,
+      "responseFormat": "json_object",
+      "timeoutMs": 60000
+    }
+  }
+}

@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "uai-v1.1-local-1",
+  "deploymentId": "b6052ec2-1e36-46fd-9932-8850c0751be1",
+  "sourceTask": "t_c7d379c4",
+  "candidateBinding": {
+    "manifestVersion": "uai-v1.1-rehearsal-1",
+    "manifestSha256": "65bdfa2aa79a1e61bab7466802853a960b5c90c801b07f587ff78e11eacc3f8c",
+    "capabilityProfileSha256": "54f69efa2811435fcba73b1e8c6f62e042238dadb9d04eca79f8b1e5b9715e7a",
+    "inventorySha256": "97bdce57e80c05593fd14aab33795f5ec24252c002e9271cd1e5e5cf7911b1e7",
+    "artifactSetSha256": "0d96c36a21b898a54f5bb0ee8c9de8077827f6fdf49087d0dad8890e192fff53"
+  },
+  "previousBinding": null,
+  "artifactSet": [
+    {
+      "slot": "core-analysis",
+      "artifactSha256": "584907188ad286f2d0561097aba16c63d321a9fb701909c3f79d1b2564acd450",
+      "sourceCommit": null
+    },
+    {
+      "slot": "telegram",
+      "artifactSha256": "9f813350f1e04bdb40c504fd02640b24c984dc3234669520abcd107eaeff96bc",
+      "sourceCommit": null
+    }
+  ],
+  "inventory": [
+    {
+      "slot": "core-analysis",
+      "operations": [
+        "ANALYZE"
+      ],
+      "enabled": true
+    },
+    {
+      "slot": "telegram",
+      "operations": [
+        "SCOUT",
+        "GUARD",
+        "MONITOR",
+        "STOPCHECK",
+        "REFLECT"
+      ],
+      "enabled": true
+    }
+  ],
+  "topologyEvidenceRef": "evidence/topology-evidence.md",
+  "tests": [
+    {
+      "id": "G1_BASELINE_COMPATIBILITY",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/baseline-suite.log",
+      "evidenceSha256": "d61c6c9b3fe4534b321fbec4be678c75d44c7447b039a157f0e86983d6238adc"
+    },
+    {
+      "id": "G2_CROSS_PROCESS",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "G3_ARTIFACT_CONFIG",
+      "status": "PASS",
+      "evidenceRef": "evidence/control/releases/210460420fcf69bf1efa0a66ce2b89f3a6572c5427553614d9a51abe4af57f6a.json",
+      "evidenceSha256": "210460420fcf69bf1efa0a66ce2b89f3a6572c5427553614d9a51abe4af57f6a"
+    },
+    {
+      "id": "G4_TOPOLOGY_SAFETY",
+      "status": "NOT_RUN",
+      "evidenceRef": "evidence/topology-evidence.md",
+      "evidenceSha256": "eec66b995ee3fec3e978dc7089d6632e47758759cc53d6655f0c3d0eabb1eb18"
+    },
+    {
+      "id": "G5_REHEARSAL",
+      "status": "PASS",
+      "evidenceRef": "evidence/rehearsal-report.json",
+      "evidenceSha256": "dbf7db1fa31d8aa5b2d4231c5ad79ae0f266ee86d78694551192ac4b84d29993"
+    },
+    {
+      "id": "G6_HUMAN_AUTHORIZATION",
+      "status": "NOT_RUN",
+      "evidenceRef": null,
+      "evidenceSha256": null
+    },
+    {
+      "id": "G7_ACTUAL_RELEASE_VERIFICATION",
+      "status": "NOT_RUN",
+      "evidenceRef": null,
+      "evidenceSha256": null
+    },
+    {
+      "id": "XP-01",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-02",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-03",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-04",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-05",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-06",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-07",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-08",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-09",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-10",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-11",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-12",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-13",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-14",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-15",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-16",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-17",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    },
+    {
+      "id": "XP-18",
+      "status": "PASS",
+      "evidenceRef": "evidence/logs/xp-cross-process.log",
+      "evidenceSha256": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b"
+    }
+  ],
+  "observedParticipants": [
+    {
+      "slot": "core-analysis",
+      "instanceId": "rehearsal-core-analysis-rb",
+      "inferenceEnabled": true,
+      "artifactSha256": "584907188ad286f2d0561097aba16c63d321a9fb701909c3f79d1b2564acd450",
+      "manifestVersion": "uai-v1.1-rehearsal-1",
+      "manifestSha256": "65bdfa2aa79a1e61bab7466802853a960b5c90c801b07f587ff78e11eacc3f8c",
+      "generation": 2,
+      "identityReady": true
+    },
+    {
+      "slot": "telegram",
+      "instanceId": "rehearsal-telegram-rb",
+      "inferenceEnabled": true,
+      "artifactSha256": "9f813350f1e04bdb40c504fd02640b24c984dc3234669520abcd107eaeff96bc",
+      "manifestVersion": "uai-v1.1-rehearsal-1",
+      "manifestSha256": "65bdfa2aa79a1e61bab7466802853a960b5c90c801b07f587ff78e11eacc3f8c",
+      "generation": 2,
+      "identityReady": true
+    }
+  ],
+  "transitions": [
+    {
+      "transitionId": "1f5587b4-4dc1-48c5-a4f7-31c46b5fd0bb",
+      "fromGeneration": 0,
+      "toGeneration": 1,
+      "phase": "ARMED",
+      "evidenceRef": "evidence/control/transitions/1f5587b4-4dc1-48c5-a4f7-31c46b5fd0bb.json"
+    },
+    {
+      "transitionId": "444969b9-4ba4-4369-93e8-67675407271b",
+      "fromGeneration": 1,
+      "toGeneration": 2,
+      "phase": "ARMED",
+      "evidenceRef": "evidence/control/transitions/444969b9-4ba4-4369-93e8-67675407271b.json"
+    }
+  ],
+  "parityReportRef": "evidence/logs/parity.log",
+  "modelEvaluationRef": null,
+  "rollbackReportRef": "evidence/rehearsal-report.json",
+  "financialRiskDispositionRef": null,
+  "operatorApprovalRef": null,
+  "evidenceHashes": {
+    "evidence/logs/baseline-suite.log": "d61c6c9b3fe4534b321fbec4be678c75d44c7447b039a157f0e86983d6238adc",
+    "evidence/logs/candidate-suite.log": "f1eb233a4abe702c242da641e2c4f2eee789004a493345ab2d8ce087194a62c1",
+    "evidence/logs/xp-cross-process.log": "70ef4b9be239c1a0fe232da08b5cd6efa7ca053306ab3e42a042322e5c29bb6b",
+    "evidence/control/releases/210460420fcf69bf1efa0a66ce2b89f3a6572c5427553614d9a51abe4af57f6a.json": "210460420fcf69bf1efa0a66ce2b89f3a6572c5427553614d9a51abe4af57f6a",
+    "evidence/topology-evidence.md": "eec66b995ee3fec3e978dc7089d6632e47758759cc53d6655f0c3d0eabb1eb18",
+    "evidence/rehearsal-report.json": "dbf7db1fa31d8aa5b2d4231c5ad79ae0f266ee86d78694551192ac4b84d29993",
+    "evidence/control/transitions/1f5587b4-4dc1-48c5-a4f7-31c46b5fd0bb.json": "ef055994f9f1d342c37c5d7c69e2c2e7c316128ea0a5204f9bf1061610a8bcde",
+    "evidence/control/transitions/444969b9-4ba4-4369-93e8-67675407271b.json": "e466292ccc50855462842f571573cb5661c00a997941a9658760e06e01ffa7df",
+    "evidence/evidence-index.json": "5ca64b1683687f92544121091c9fd6c5f711d6883ce872f2979706c1f749af0d",
+    "evidence/logs/parity.log": "782fdc5cb968b294be8f463b467724935599298380932b882a5d0940ff93355d"
+  },
+  "notes": {
+    "G1_BASELINE_COMPATIBILITY": "baseline f0e8cfcfc7b7256ff87d326495a77e76f1af9b52: 570/574 pass, failures = [G-5: buildGuardPrompt version is risk-guard-v2 with expected payload keys; S-5: buildScoutPrompt strips instrument from symbols in user payload; buildMonitorPrompt/buildStopcheckPrompt versions and payload keys]; candidate: 746/750 pass, failures = [G-5: buildGuardPrompt version is risk-guard-v2 with expected payload keys; S-5: buildScoutPrompt strips instrument from symbols in user payload; buildMonitorPrompt/buildStopcheckPrompt versions and payload keys]; only the documented stale prompt-layout tests may fail on either side",
+    "G2_CROSS_PROCESS": "23/23 pass in the candidate cross-process run (real child processes and the real release CLI)",
+    "G5_REHEARSAL": "rehearsal-report.json: activations at generations [1, 2]; forward 1f5587b4-4dc1-48c5-a4f7-31c46b5fd0bb, rollback 444969b9-4ba4-4369-93e8-67675407271b (via rollback); fixture journal 2→4 entries with declared deterministic actions [trailing-stop-adjust; harvest-close]; journal sha256 before a4faf6859f2897de…, after befe15dca18f5793…; residual equal after removing the declared actions: yes; duplicate entries: none; the financial-state criterion is proven on the synthetic fixture journal only; live financial state/journal equivalence and duplicate-entry absence remain G7/operator obligations; XP-09/XP-10/XP-17 pass",
+    "observation": "identityReady comes from scripts/ai_participant_probe.mjs (one process per participant, side-effect free) reading the committed control record; process liveness and host topology remain G4/G7 and are not claimed"
+  },
+  "blockers": [
+    "operator must verify one host, one shared local filesystem and the full participant inventory (G4)",
+    "operator/model/financial approval is not recorded (G6)",
+    "G7 live post-activation verification requires an authorized release operation"
+  ],
+  "conclusion": "OFFLINE_CONFORMANT"
+}

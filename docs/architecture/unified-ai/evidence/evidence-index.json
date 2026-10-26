@@ -1,0 +1,8 @@
+{
+  "note": "Synthetic rehearsal evidence. Artifact digests are digests of fixture strings, not built bundles. No production artifact, credential or account is referenced.",
+  "manifestSha256": "65bdfa2aa79a1e61bab7466802853a960b5c90c801b07f587ff78e11eacc3f8c",
+  "profileSha256": "54f69efa2811435fcba73b1e8c6f62e042238dadb9d04eca79f8b1e5b9715e7a",
+  "descriptorSha256": "210460420fcf69bf1efa0a66ce2b89f3a6572c5427553614d9a51abe4af57f6a",
+  "inventorySha256": "97bdce57e80c05593fd14aab33795f5ec24252c002e9271cd1e5e5cf7911b1e7",
+  "artifactSetSha256": "0d96c36a21b898a54f5bb0ee8c9de8077827f6fdf49087d0dad8890e192fff53"
+}

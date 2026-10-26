@@ -18,6 +18,7 @@ import { createPaperSession } from './session/paper-session.mjs';
 import { createTestnetSessionFromEnv } from './session/testnet-bootstrap.mjs';
 import { createRestMarketDataAdapter } from './market/rest-market-data-adapter.mjs';
 import { createLogger } from './util/logger.mjs';
+import { observeCoreIdentity } from './ai/core-ai-composition.mjs';
 
 const logger = createLogger('MAIN');
 
@@ -35,6 +36,26 @@ async function main() {
     credentialsRequired: false,
   });
   logger.info('risk limits', { ...config.risk });
+
+  // Single-mode identity observer (UAI-06A). This bootstrap deliberately has no
+  // LLM call: it validates deployment identity without reading a provider key,
+  // claiming the core-analysis slot or touching the network. A failure is
+  // reported and deterministic bootstrap/protection continue unchanged.
+  const aiIdentity = observeCoreIdentity();
+  if (aiIdentity.mode === 'single') {
+    logger.info('AI identity validated', {
+      identityValidated: aiIdentity.identityValidated,
+      inferenceEnabled: false,
+      phase: aiIdentity.phase ?? null,
+      generation: aiIdentity.generation ?? null,
+      manifestVersion: aiIdentity.manifestVersion ?? null,
+    });
+    if (!aiIdentity.identityValidated) {
+      logger.warn('AI identity is not ready — deterministic bootstrap and protection continue', {
+        errorCode: aiIdentity.errorCode ?? null,
+      });
+    }
+  }
 
   if (config.tradingMode === TRADING_MODE.BACKTEST) {
     // BACKTEST is a fully offline path driven by local historical data. This

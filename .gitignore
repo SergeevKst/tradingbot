@@ -8,3 +8,7 @@ data/
 dist/
 .DS_Store
 graphify-out/
+
+# UAI-09 dossier evidence: gate/XP logs are committed with the report that hashes them
+!docs/architecture/unified-ai/evidence/logs/
+!docs/architecture/unified-ai/evidence/logs/*.log
