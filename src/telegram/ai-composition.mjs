@@ -233,6 +233,7 @@ function skillWorkToken(workToken) {
 /**
  * @typedef {object} TelegramCompositionOptions
  * @property {any} config single-mode runtime config
+ * @property {Record<string, string | undefined>} [env] local secret source for the v2 credential resolver; defaults to `process.env`
  * @property {any} controlStore
  * @property {{ artifactSha256: string } | string} artifactIdentity
  * @property {{
@@ -985,6 +986,7 @@ export function createTelegramAICompositionFromEnv(input = {}) {
   }
   const composition = createTelegramAIComposition({
     config,
+    env,
     controlStore,
     artifactIdentity: { artifactSha256: input.artifactSha256 ?? config.artifactSha256 },
     transportDependencies: input.transportDependencies,

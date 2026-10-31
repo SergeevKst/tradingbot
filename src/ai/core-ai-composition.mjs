@@ -284,6 +284,7 @@ export function createDefaultCoreProviderFactory(input) {
 /**
  * @typedef {object} CoreCompositionOptions
  * @property {ReturnType<import('../config/ai-runtime.mjs').loadAIRuntimeConfig>} config
+ * @property {Record<string, string | undefined>} [env] local secret source for the v2 credential resolver; defaults to the ambient environment
  * @property {any} controlStore
  * @property {{ artifactSha256: string } | string} artifactIdentity
  * @property {{

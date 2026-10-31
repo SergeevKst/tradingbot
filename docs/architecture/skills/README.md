@@ -105,6 +105,11 @@ the environment of a running process.
 | `v2` | v2 | Every operation dispatches through its approved package and bound model identity. |
 | `v2` | v1 / empty | Refused: every operation answers `ACTIVATION_PAUSED` with cause `SKILL_REGISTRY_INVALID`. |
 
+`AI_SKILL_MODE=v2` also requires `AI_RUNTIME_MODE=single`: without a manifest
+identity there is nothing to bind a package to, so `loadAIRuntimeConfig` refuses
+the launch (`CONFIGURATION_ERROR`) instead of silently keeping the hard-coded
+prompts.
+
 In `v2` mode:
 
 1. The admitted generation's schemaVersion 2 binding supplies
@@ -121,7 +126,15 @@ In `v2` mode:
    those entry points throw `CONFIGURATION_ERROR` in v2 mode.
 4. Provider credentials are selected by resolved provider identity
    (`createProviderCredentialResolver`) and injected only inside the transport; a
-   key is never reused across origins.
+   key is never reused across origins. Because the provider comes from the bound
+   model registry, a provider credential is not a competing identity: a
+   DeepSeek + Kimi deployment starts with `AI_API_KEY`/`DEEPSEEK_API_KEY` for
+   DeepSeek and `KIMI_API_KEY` for Kimi. Under `legacy` dispatch the same
+   `KIMI_API_KEY` still selects the Kimi endpoint for REFLECT, so it remains a
+   refused identity variable there. Provider/model/endpoint variables
+   (`AI_PROVIDER`, `AI_MODEL`, `AI_BASE_URL`, `SCOUT_*`, `GUARD_*`,
+   `AI_GUARD_MODEL`, `AI_REFLECT_MODEL`, `SCOUT_API_KEY`, `GUARD_API_KEY`) are
+   refused in both modes.
 
 The Telegram composition exposes typed `monitor(input)` / `stopcheck(input)`
 methods for this path and keeps `generateIdeas` / `filterIdea` as structured
