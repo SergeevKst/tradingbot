@@ -1,0 +1,52 @@
+{
+  "input": {
+    "news": "No material headlines.",
+    "symbols": [
+      {
+        "symbol": "BTCUSDT",
+        "lastPrice": 102,
+        "bid": 101.9,
+        "ask": 102.1,
+        "high24h": 110,
+        "low24h": 95,
+        "avgRange14h": 1,
+        "candles": [
+          {
+            "o": 100,
+            "h": 102,
+            "l": 99,
+            "c": 101,
+            "v": 10
+          },
+          {
+            "o": 101,
+            "h": 103,
+            "l": 100,
+            "c": 102,
+            "v": 12
+          },
+          {
+            "o": 102,
+            "h": 104,
+            "l": 101,
+            "c": 103,
+            "v": 9
+          }
+        ]
+      }
+    ],
+    "openPositions": null
+  },
+  "expectedOutput": {
+    "ideas": [
+      {
+        "symbol": "BTCUSDT",
+        "side": "LONG",
+        "entry": 102,
+        "stopLoss": 99,
+        "takeProfit": 107,
+        "rationale": "Trend continuation above the 1h swing low."
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "valid-approved",
+      "fixture": "examples/clean-long.json",
+      "stage": "output",
+      "response": {
+        "verdict": "APPROVED",
+        "confidence": 0.6,
+        "reasons": [
+          "setup is coherent",
+          "no news conflict"
+        ]
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "valid-rejected",
+      "fixture": "examples/clean-long.json",
+      "stage": "output",
+      "response": {
+        "verdict": "REJECTED",
+        "confidence": 0.7,
+        "reasons": [
+          "chop"
+        ]
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "reject-empty-reasons",
+      "fixture": "examples/clean-long.json",
+      "stage": "output",
+      "response": {
+        "verdict": "APPROVED",
+        "confidence": 0.5,
+        "reasons": []
+      },
+      "expected": "SKILL_OUTPUT_INVALID"
+    }
+  ]
+}

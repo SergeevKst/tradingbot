@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "packageId": "trading.stopcheck",
+  "version": "1.0.0",
+  "operation": "STOPCHECK",
+  "title": "Fast loss protection review",
+  "description": "Review a losing position and recommend CLOSE or HOLD. Code owns the close decision.",
+  "instructions": "instructions.md",
+  "inputSchema": "input.schema.json",
+  "outputSchema": "output.schema.json",
+  "policy": "policy.json",
+  "promptLayout": "prompt-layout.json",
+  "inputContract": {
+    "id": "stopcheck.input",
+    "version": "1.0.0"
+  },
+  "outputContract": {
+    "id": "stopcheck.output",
+    "version": "1.0.0"
+  },
+  "compatibility": {
+    "botVersionRange": ">=0.1.0 <0.2.0",
+    "skillApiVersion": 1
+  },
+  "requiredModelCapabilities": {
+    "temperature": {
+      "min": 0,
+      "max": 0
+    },
+    "responseFormats": [
+      "json_object"
+    ],
+    "reasoningEfforts": [
+      "low"
+    ],
+    "minOutputTokens": 128,
+    "maxOutputTokens": 512,
+    "stream": false
+  },
+  "dependencies": [],
+  "provenance": {
+    "authorId": "baseline-extraction",
+    "createdAt": "2026-10-29T00:00:00Z",
+    "sourceRevision": "unreleased-example"
+  }
+}

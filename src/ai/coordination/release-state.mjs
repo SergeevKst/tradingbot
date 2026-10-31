@@ -24,6 +24,7 @@ import {
   OBSERVER_STATUS,
   PHASE,
   TRANSITION_PHASES,
+  bindingComparisonFields,
   computeInventoryDigest,
   computeReleaseDescriptorDigest,
   validateAck,
@@ -263,8 +264,8 @@ function assertDescriptorMatchesTransition(record, descriptor, action) {
     });
   }
   if (record.target === null) illegalPhase(record, action);
-  for (const key of ['manifestVersion', 'manifestSha256', 'capabilityProfileSha256', 'inventorySha256', 'artifactSetSha256']) {
-    if (descriptor.binding[key] !== record.target[key]) {
+  for (const key of bindingComparisonFields(descriptor.binding)) {
+    if (/** @type {any} */ (descriptor.binding)[key] !== /** @type {any} */ (record.target)[key]) {
       reject(`descriptor binding ${key} does not match the reserved target binding`, COORDINATION_ERROR_CODE.INVALID_EVIDENCE, {
         field: key,
       });

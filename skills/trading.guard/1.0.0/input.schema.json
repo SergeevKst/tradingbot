@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "btc": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "lastPrice": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "ema21h": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "change4hPct": {
+              "type": "number"
+            },
+            "bias": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down",
+                "flat"
+              ]
+            }
+          },
+          "required": [
+            "lastPrice",
+            "ema21h",
+            "change4hPct",
+            "bias"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "news": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 8192
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "idea": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "LONG",
+            "SHORT"
+          ]
+        },
+        "entry": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "stopLoss": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "takeProfit": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "symbol",
+        "side",
+        "entry",
+        "stopLoss",
+        "takeProfit"
+      ]
+    },
+    "market": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "lastPrice": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bid": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ask": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "high24h": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "low24h": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "avgRange14h": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "o": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "h": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "l": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "c": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "v": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "o",
+              "h",
+              "l",
+              "c",
+              "v"
+            ]
+          },
+          "maxItems": 30
+        }
+      },
+      "required": [
+        "symbol",
+        "lastPrice",
+        "bid",
+        "ask",
+        "high24h",
+        "low24h",
+        "avgRange14h",
+        "candles"
+      ]
+    },
+    "sentiment": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fearGreed": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fundingRate": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "turnover24hUsd": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "openInterestUsd": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "fearGreed",
+            "fundingRate",
+            "turnover24hUsd",
+            "openInterestUsd"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "btc",
+    "news",
+    "idea",
+    "market",
+    "sentiment"
+  ]
+}

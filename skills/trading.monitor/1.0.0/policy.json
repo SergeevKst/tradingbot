@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "allowedTools": [],
+  "dataSources": [
+    "position.monitor.v1",
+    "news.headlines.v1"
+  ],
+  "limits": {
+    "maxInputBytes": 32768,
+    "maxOutputBytes": 8192,
+    "maxOutputTokens": 512,
+    "timeoutMs": 60000,
+    "maxModelCalls": 1,
+    "maxToolCalls": 0
+  },
+  "network": "provider-only",
+  "filesystem": "none",
+  "effects": "none"
+}

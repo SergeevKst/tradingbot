@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "packageId": "trading.analyze",
+  "version": "1.0.0",
+  "operation": "ANALYZE",
+  "title": "Market analysis advisor",
+  "description": "Advise on directional bias from a bounded market snapshot. Advisory only.",
+  "instructions": "instructions.md",
+  "inputSchema": "input.schema.json",
+  "outputSchema": "output.schema.json",
+  "policy": "policy.json",
+  "promptLayout": "prompt-layout.json",
+  "inputContract": {
+    "id": "analyze.input",
+    "version": "1.0.0"
+  },
+  "outputContract": {
+    "id": "analyze.output",
+    "version": "1.0.0"
+  },
+  "compatibility": {
+    "botVersionRange": ">=0.1.0 <0.2.0",
+    "skillApiVersion": 1
+  },
+  "requiredModelCapabilities": {
+    "temperature": {
+      "min": 0,
+      "max": 0
+    },
+    "responseFormats": [
+      "json_object"
+    ],
+    "reasoningEfforts": [
+      null
+    ],
+    "minOutputTokens": 128,
+    "maxOutputTokens": 1024,
+    "stream": false
+  },
+  "dependencies": [],
+  "provenance": {
+    "authorId": "baseline-extraction",
+    "createdAt": "2026-10-29T00:00:00Z",
+    "sourceRevision": "unreleased-example"
+  }
+}

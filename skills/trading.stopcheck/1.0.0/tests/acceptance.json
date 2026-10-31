@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "valid-hold",
+      "fixture": "examples/losing-long.json",
+      "stage": "output",
+      "response": {
+        "action": "HOLD",
+        "reason": "Loss is still inside the prevailing range and the swing holds.",
+        "confidence": 0.5
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "reject-exit-action",
+      "fixture": "examples/losing-long.json",
+      "stage": "output",
+      "response": {
+        "action": "EXIT",
+        "reason": "not an allowed action",
+        "confidence": 0.6
+      },
+      "expected": "SKILL_OUTPUT_INVALID"
+    }
+  ]
+}
