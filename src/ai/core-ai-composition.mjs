@@ -293,49 +293,55 @@ export function createCoreAIComposition(options) {
     }
 
     // ─── Multi-model routing (v1.2) ──────────────────────────────────────────
-    // When registry is provided, resolve operation → model identity from central routing table.
-    // This overrides manifest-based provider selection while preserving backward compatibility.
-    /** @type {{ resolvedIdentity: *, manifest: any, profile: any } | null} */
-    let resolution = null;
+    // When a registry is configured, ANALYZE resolves its model identity from the
+    // central routing table. The resolved input object is built **once and
+    // frozen**: the previous implementation froze `resolution` and then assigned
+    // to it, which throws in an ES module and silently disabled routing.
+    //
+    // A registry that cannot resolve ANALYZE is a configuration fault, not a
+    // licence to fall back to the manifest: in guarded mode an unresolvable route
+    // refuses ANALYZE instead of dispatching an unreviewed provider identity.
+    /** @type {Readonly<any>} */
+    let factoryInput;
     if (options.registry && options.registry.routingTable?.['ANALYZE']) {
+      let resolved;
       try {
-        const resolved = resolveOperationModel('ANALYZE', options.registry);
-        resolution = Object.freeze({
-          resolvedIdentity: resolved,
-          manifest: input.manifest,     // preserved for provenance & binding hash
-          profile: input.profile,       // preserved for settings
-        });
+        resolved = resolveOperationModel('ANALYZE', options.registry);
       } catch (err) {
-        logger.warn('model resolution failed — falling back to manifest-based dispatch', {
-          code: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
+        throw new CoordinationError('the ANALYZE model route cannot be resolved from the registry', {
+          code: COORDINATION_ERROR_CODE.INVALID_EVIDENCE,
+          cause: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
         });
-        resolution = null; // fall through to manifest path
       }
-    }
-
-    const factoryInput = resolution ?? Object.freeze({
-      manifest: input.manifest,
-      profile: input.profile,
-      apiKey,
-      fetchImpl: transport.fetchImpl,
-      providerId: input.manifest.providerId,
-      model: input.manifest.modelId,
-      baseUrl: input.manifest.canonicalBaseUrl,
-      settings: getOperationSettings(input.profile, 'ANALYZE'),
-    });
-
-    if (resolution) {
-      factoryInput.resolvedIdentity = resolution.resolvedIdentity;
-      factoryInput.apiKey = apiKey;
-      factoryInput.fetchImpl = transport.fetchImpl;
-      factoryInput.settings = getOperationSettings(resolution.profile, 'ANALYZE');
+      factoryInput = Object.freeze({
+        manifest: input.manifest,
+        profile: input.profile,
+        resolvedIdentity: resolved,
+        apiKey,
+        fetchImpl: transport.fetchImpl,
+        providerId: resolved.providerId,
+        model: resolved.modelId,
+        baseUrl: resolved.canonicalBaseUrl,
+        settings: getOperationSettings(input.profile, 'ANALYZE'),
+      });
+    } else {
+      factoryInput = Object.freeze({
+        manifest: input.manifest,
+        profile: input.profile,
+        apiKey,
+        fetchImpl: transport.fetchImpl,
+        providerId: input.manifest.providerId,
+        model: input.manifest.modelId,
+        baseUrl: input.manifest.canonicalBaseUrl,
+        settings: getOperationSettings(input.profile, 'ANALYZE'),
+      });
     }
 
     const createProvider = typeof transport.createProvider === 'function'
       ? transport.createProvider
       : createDefaultCoreProviderFactory;
     provider = createProvider(factoryInput);
-    providerManifest = resolution ? resolution.manifest : input.manifest;
+    providerManifest = input.manifest;
     return createGenerationRuntime({
       binding: input.binding,
       generation: input.generation,

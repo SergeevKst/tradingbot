@@ -29,6 +29,7 @@ import { createReflector } from './reflect.mjs';
 import { createControlStore } from '../ai/coordination/control-store.mjs';
 // ─── Multi-Model Routing Support (v1.2) ──────────────────────────────────────
 import { resolveOperationModel } from '../ai/model-resolver.mjs';
+import { createSkillPackageStore } from '../ai/skills/package-store.mjs';
 
 /** Operations bound by this participant, in protocol order. */
 export const TELEGRAM_OPERATIONS = Object.freeze(['SCOUT', 'GUARD', 'MONITOR', 'STOPCHECK', 'REFLECT']);
@@ -121,35 +122,45 @@ export function createTelegramAIComposition(options) {
   /** @type {{ client: any, reflector: any, manifest: any, profile: any } | null} */
   let facade = null;
 
-
-  // Multi-model routing: build per-op resolution cache at compose init time
-  if (options.registry?.routingTable) {
-    try {
-      resolvedCache = buildPerOpResolution();
-    } catch (err) {
-      logger.warn('failed to build per-op model cache', { code: err instanceof CoordinationError ? err.code : 'CACHE_FAIL', registryId: options.registry?.registryId });
-    }
-  }
-
   // ─── Per-operation multi-model routing cache (v1.2) ──────────────────────────
-  /** @type {{ models: Record<string, Readonly<{ providerId: string, modelId: string, canonicalBaseUrl: string, trustTier: string }> | null> | null }, fallbackManifest: object | null} */
+  /**
+   * The cache must be declared before it is rebuilt. Declaring it after the
+   * rebuild block put the assignment in the temporal dead zone, so construction
+   * threw, the error was swallowed and every operation silently fell back to the
+   * manifest model identity (architecture v1.1 §2.4 #2).
+   *
+   * @type {{ models: Record<string, Readonly<{ providerId: string, modelId: string, canonicalBaseUrl: string, trustTier: string }> | null>, fallbackManifest: object | null } | null}
+   */
   let resolvedCache = null;
+
+  // Multi-model routing: build per-op resolution cache at compose init time.
+  // A registry that cannot resolve one of the operations is a configuration
+  // fault, not a licence to fall back to the manifest: construction fails and
+  // the guard keeps inference paused.
+  if (options.registry?.routingTable) {
+    resolvedCache = buildPerOpResolution();
+  }
 
   /** Build and cache resolved identities for ALL telegram operations. Each operation maps independently. */
   function buildPerOpResolution() {
     if (!options.registry?.routingTable) return null;
     const models = {};
-    let fallbackManifest = null;
+    const fallbackManifest = null;
     for (const operation of TELEGRAM_OPERATIONS) {
       if (typeof operation !== 'string' || operation === '') continue;
       const routeKey = options.registry.routingTable[operation];
-      if (!routeKey) continue;
+      if (!routeKey) {
+        throw new CoordinationError(`the model registry has no route for ${operation}`, {
+          code: COORDINATION_ERROR_CODE.INVALID_EVIDENCE,
+        });
+      }
       try {
-        const resolved = resolveOperationModel(operation, options.registry);
-        models[operation] = resolved;
+        models[operation] = resolveOperationModel(operation, options.registry);
       } catch (err) {
-        logger.warn(`per-op resolution failed for ${JSON.stringify(operation)} (${err instanceof CoordinationError ? err.code : 'unknown'})`, { registryId: options.registry.registryId, operation });
-        models[operation] = null;
+        throw new CoordinationError(`per-op resolution failed for ${operation}`, {
+          code: COORDINATION_ERROR_CODE.INVALID_EVIDENCE,
+          cause: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
+        });
       }
     }
     return Object.freeze({ models, fallbackManifest });
@@ -166,6 +177,33 @@ export function createTelegramAIComposition(options) {
       modelId: bindingInput.manifest.modelId,
       canonicalBaseUrl: bindingInput.manifest.canonicalBaseUrl,
     });
+  }
+
+  /**
+   * Build the per-operation transport roles. Each role carries the resolved
+   * provider, endpoint, model and reviewed settings, so the *observed wire
+   * request* matches the selected identity for MONITOR, STOPCHECK and REFLECT
+   * instead of reusing the GUARD role (architecture v1.1 §2.4 #3).
+   *
+   * @param {{ apiKey: string, settings: Record<string, any> }} input
+   */
+  function buildOperationRoles(input) {
+    /** @type {Record<string, any>} */
+    const roles = {};
+    for (const operation of TELEGRAM_OPERATIONS) {
+      const identity = getModelForOp(operation, { manifest: input.manifest });
+      const settings = input.settings?.[operation];
+      if (!identity) continue;
+      roles[operation] = Object.freeze({
+        provider: identity.providerId,
+        baseUrl: transportOrigin(identity),
+        apiKey: input.apiKey,
+        model: identity.modelId,
+        reasoningEffort: settings?.reasoningEffort ?? null,
+        temperature: settings?.temperature,
+      });
+    }
+    return Object.freeze(roles);
   }
 
 
@@ -210,10 +248,11 @@ export function createTelegramAIComposition(options) {
       timeoutMs,
       manifest: input.manifest,
       profile: input.profile,
+      operationRoles: buildOperationRoles({ apiKey, manifest: input.manifest, settings }),
     });
     const reflector = createReflect({
       apiKey,
-      baseUrl: transportOrigin(scoutModel),
+      baseUrl: transportOrigin(reflectModel),
       model: reflectModel.modelId,
       timeoutMs: settings.REFLECT.timeoutMs,
       fetchImpl: transport.fetchImpl,
@@ -244,6 +283,13 @@ export function createTelegramAIComposition(options) {
             return facade.client.filterIdea(request.idea, request.market, request.options ?? {});
           case 'MONITOR':
           case 'STOPCHECK':
+            // Dispatch with the operation's own resolved identity instead of the
+            // GUARD role (architecture v1.1 §2.4 #3). An injected compatibility
+            // client that predates per-operation roles keeps working through its
+            // GUARD entry point.
+            if (typeof facade.client._completeOperation === 'function') {
+              return facade.client._completeOperation(operation, request.prompt);
+            }
             return facade.client._completeGuard(request.prompt);
           case 'REFLECT':
             return facade.reflector.reflect(request.trade);
@@ -555,14 +601,50 @@ export function createTelegramAICompositionFromEnv(input = {}) {
   if (!controlStore) {
     controlStore = createControlStore({ controlDir: config.controlDir });
   }
+  const logger = input.logger ?? { debug() {}, info() {}, warn() {}, error() {} };
+  // Model-registry bootstrap (architecture v1.1 §2.4 #4). The production entry
+  // point must supply the routed registry explicitly or by reading the one the
+  // committed generation binds; it must never be inferred from process
+  // environment strings.
+  let registry = input.registry ?? null;
+  if (registry === null) {
+    registry = loadBoundModelRegistry({ controlStore, controlDir: config.controlDir, logger });
+  }
   const composition = createTelegramAIComposition({
     config,
     controlStore,
     artifactIdentity: { artifactSha256: input.artifactSha256 ?? config.artifactSha256 },
     transportDependencies: input.transportDependencies,
     policy: input.policy,
-    logger: input.logger,
+    logger,
     instanceId: input.instanceId,
+    registry,
   });
   return composition;
+}
+
+/**
+ * Read the model registry that the committed generation binds, from the shared
+ * control directory. A missing registry is reported but never replaced by an
+ * environment-derived route.
+ *
+ * @param {{ controlStore: any, controlDir: string, logger: object }} input
+ * @returns {Readonly<object> | null}
+ */
+function loadBoundModelRegistry(input) {
+  const store = input.controlStore;
+  if (!store || typeof store.tryReadRecord !== 'function') return null;
+  try {
+    const record = store.tryReadRecord();
+    const binding = record?.active ?? record?.target ?? null;
+    const digest = binding?.modelRegistrySha256 ?? null;
+    if (typeof digest !== 'string') return null;
+    const skillStore = createSkillPackageStore({ rootDir: input.controlDir });
+    return skillStore.readModelRegistry(digest);
+  } catch (error) {
+    input.logger.warn('the bound model registry is not readable; per-operation routing is disabled', {
+      code: error instanceof CoordinationError ? error.code : 'REGISTRY_UNAVAILABLE',
+    });
+    return null;
+  }
 }
