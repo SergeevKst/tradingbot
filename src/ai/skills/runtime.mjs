@@ -514,6 +514,11 @@ export function createSkillRuntime(input) {
         });
       }
       value = /** @type {any} */ (prepared).adapter.validateOutput(parsed);
+      // Host domain validation with the shaped input always runs, even when the
+      // package schema says the answer is valid (architecture §4.4).
+      if (typeof /** @type {any} */ (prepared).adapter.validateWithInput === 'function') {
+        value = /** @type {any} */ (prepared).adapter.validateWithInput(value, dto);
+      }
     } catch (error) {
       return handleFailure(error, scope, operation, requestId);
     }

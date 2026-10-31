@@ -243,6 +243,30 @@ describe('Ordinary per-request failures never latch (AC-04 contrast cases)', () 
     }
   });
 
+  test('SCOUT ideas are checked against market geometry, not only the schema', async () => {
+    const fx = buildFixture();
+    try {
+      const cases = [
+        // entry far away from the observed lastPrice
+        { ideas: [{ symbol: 'BTCUSDT', side: 'LONG', entry: 500, stopLoss: 450, takeProfit: 700, rationale: 'breakout' }] },
+        // stop/target do not bracket the entry for a LONG
+        { ideas: [{ symbol: 'BTCUSDT', side: 'LONG', entry: 102, stopLoss: 105, takeProfit: 100, rationale: 'reversed levels' }] },
+        // symbol absent from the market snapshot
+        { ideas: [{ symbol: 'ETHUSDT', side: 'LONG', entry: 102, stopLoss: 99, takeProfit: 107, rationale: 'unknown symbol' }] },
+      ];
+      for (const output of cases) {
+        const transport = fakeTransport(() => ({ status: 200, body: chatEnvelope(output) }));
+        const { runtime } = runtimeFor(fx, { transport });
+        const result = await runtime.run({ operation: 'SCOUT', input: SAMPLE_INPUTS.SCOUT }, work());
+        assert.equal(result.ok, false, `${JSON.stringify(output)} must be refused`);
+        assert.equal(result.code, 'SKILL_OUTPUT_INVALID', 'a schema-valid but unsound idea is an ordinary output failure');
+        assert.equal(result.value, undefined);
+      }
+    } finally {
+      fx.cleanup();
+    }
+  });
+
   test('a per-operation concurrency ceiling refuses rather than queues', async () => {
     const fx = buildFixture();
     try {

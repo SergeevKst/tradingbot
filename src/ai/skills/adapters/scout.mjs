@@ -184,4 +184,8 @@ export const scoutAdapter = defineAdapter(
       ),
     });
   },
+  // Market-aware geometry: a model-proposed entry must sit near the observed
+  // price, the stop/target must bracket it and honour the minimum reward/risk,
+  // and the symbol must exist in the projected market snapshot.
+  (value, dto) => Object.freeze({ ideas: validateScoutIdeas(value, dto) }),
 );

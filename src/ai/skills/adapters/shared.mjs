@@ -152,8 +152,9 @@ export function refuseSecretFields(value, label, fail = inputInvalid) {
  * @param {readonly string[]} dataSources
  * @param {(hostInput: unknown) => unknown} shape
  * @param {(value: unknown) => unknown} validateOutput
+ * @param {((value: unknown, dto: unknown) => unknown) | null} [validateWithInput]
  */
-export function defineAdapter(operation, adapterId, inputContract, outputContract, dataSources, shape, validateOutput) {
+export function defineAdapter(operation, adapterId, inputContract, outputContract, dataSources, shape, validateOutput, validateWithInput = null) {
   return Object.freeze({
     operation,
     adapterId,
@@ -165,5 +166,14 @@ export function defineAdapter(operation, adapterId, inputContract, outputContrac
     shape: (hostInput) => deepFreeze(shape(hostInput)),
     /** @param {unknown} value */
     validateOutput: (value) => validateOutput(value),
+    /**
+     * Domain validation that needs the shaped input (for example market geometry
+     * for SCOUT levels). The runtime always runs it after the shape validation,
+     * so a package schema can never be the only check.
+     *
+     * @param {unknown} value
+     * @param {unknown} dto
+     */
+    validateWithInput: validateWithInput === null ? null : (value, dto) => validateWithInput(value, dto),
   });
 }
