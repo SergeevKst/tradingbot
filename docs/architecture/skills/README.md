@@ -224,6 +224,12 @@ The verified v1.2 integration gaps are closed in this branch:
   the six `skillApprovalRefs` and `planApprovalRef`. `scripts/skill_package.mjs`
   publishes packages and registries only, so assembling a signed v2 candidate
   descriptor is still a release-engineering step, not a CLI verb.
+- The v2 adapters are intentionally stricter than the legacy prompts on missing
+  market data: ANALYZE requires a non-empty chronological candle series and
+  MONITOR/STOPCHECK require a complete precomputed trend block. A host snapshot
+  that lacks them is `SKILL_INPUT_INVALID` (operation skipped, no model call, no
+  effect) where the legacy prompt would have rendered `null`. These rejections
+  are per-request and never latch the participant.
 - ACK, observer receipts and participant target grants keep the schemaVersion 1
   body in this branch; they compare bindings through
   `bindingComparisonFields`, so a v2 binding is compared field-by-field, but a
