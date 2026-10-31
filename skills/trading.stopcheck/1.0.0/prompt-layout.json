@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "userParts": [
+    {
+      "label": "NEWS",
+      "valuePointer": "/news"
+    },
+    {
+      "label": "POSITION",
+      "valuePointer": "/position"
+    },
+    {
+      "label": "MARKET",
+      "valuePointer": "/market"
+    },
+    {
+      "label": "BTC",
+      "valuePointer": "/btc"
+    }
+  ]
+}

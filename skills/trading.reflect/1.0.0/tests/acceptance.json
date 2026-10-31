@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "ordinary-stop",
+      "fixture": "examples/ordinary-stop.json",
+      "stage": "output",
+      "response": {
+        "lesson": "The protective stop closed the trade.",
+        "proposedRule": "",
+        "severity": "low",
+        "matchedExistingRule": false
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "reject-order-field",
+      "fixture": "examples/ordinary-stop.json",
+      "stage": "output",
+      "response": {
+        "lesson": "The protective stop closed the trade.",
+        "proposedRule": "",
+        "severity": "low",
+        "matchedExistingRule": false,
+        "createOrder": true
+      },
+      "expected": "SKILL_OUTPUT_INVALID"
+    },
+    {
+      "id": "reject-missing-lesson",
+      "fixture": "examples/ordinary-stop.json",
+      "stage": "output",
+      "response": {
+        "proposedRule": "",
+        "severity": "low",
+        "matchedExistingRule": false
+      },
+      "expected": "SKILL_OUTPUT_INVALID"
+    },
+    {
+      "id": "reject-invalid-side",
+      "fixture": "examples/ordinary-stop.json",
+      "stage": "input",
+      "replace": {
+        "pointer": "/trade/side",
+        "value": "BUY_NOW"
+      },
+      "expected": "SKILL_INPUT_INVALID"
+    }
+  ]
+}

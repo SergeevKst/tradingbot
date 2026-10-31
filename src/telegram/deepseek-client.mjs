@@ -102,6 +102,25 @@ export function createDeepSeekChat(options) {
   const timeoutMs = options.timeoutMs ?? 60000;
   const fetchImpl = globalThis.fetch;
 
+  /**
+   * Per-operation resolved roles (MONITOR, STOPCHECK, REFLECT, SCOUT, GUARD).
+   * Built by the composition from the resolved routing identity plus reviewed
+   * settings, so each operation dispatches with its own provider/model/endpoint
+   * instead of borrowing the GUARD role.
+   */
+  const operationRoles = {};
+  for (const [operation, role] of Object.entries(options.operationRoles ?? {})) {
+    if (role === null || typeof role !== 'object') continue;
+    operationRoles[operation] = Object.freeze({
+      provider: role.provider,
+      baseUrl: String(role.baseUrl).replace(/\/+$/, ''),
+      apiKey: role.apiKey,
+      model: role.model,
+      reasoningEffort: role.reasoningEffort ?? null,
+      temperature: typeof role.temperature === 'number' ? role.temperature : undefined,
+    });
+  }
+
   const missing = [];
   if (!scout.apiKey) missing.push(`scout (${scout.provider})`);
   if (!guard.apiKey) missing.push(`guard (${guard.provider})`);
@@ -123,9 +142,17 @@ export function createDeepSeekChat(options) {
     const label = role.provider === 'kimi' ? 'Kimi' : 'DeepSeek';
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    // api.moonshot.ai (international endpoint) rejects any temperature other
-    // than 1 on current Kimi models — override locally when that host is used.
-    const forcedTemp = /moonshot\.ai/.test(role.baseUrl) ? 1 : null;
+    // Settings are honored exactly (architecture v1.1 §2.4 #6, §6.1). A host that
+    // cannot accept the reviewed temperature is a configuration error: the
+    // previous implementation silently substituted 1, which meant the observed
+    // wire request did not match the approved profile.
+    if (/moonshot\.ai/.test(role.baseUrl) && temp !== 1) {
+      clearTimeout(timer);
+      throw new Error(
+        `${label}(${role.model}) host api.moonshot.ai requires temperature 1; configured ${temp} is rejected rather than silently overridden`,
+      );
+    }
+    const requestTemperature = temp;
     let res;
     try {
       const body = {
@@ -134,7 +161,7 @@ export function createDeepSeekChat(options) {
           { role: 'system', content: prompt.system },
           { role: 'user', content: prompt.user },
         ],
-        temperature: forcedTemp ?? temp,
+        temperature: requestTemperature,
         stream: false,
         response_format: { type: 'json_object' },
       };
@@ -227,6 +254,27 @@ export function createDeepSeekChat(options) {
      */
     async _completeGuard(prompt) {
       return complete(guard, prompt, 0);
+    },
+    /**
+     * Completion for one resolved operation identity (architecture §2.4 #3).
+     *
+     * MONITOR and STOPCHECK previously both dispatched through the GUARD role, so
+     * the observed wire request did not match the identity that had been resolved
+     * for the operation. Each entry of `operationRoles` is built from the resolved
+     * identity (provider, base URL, model, key) and the reviewed settings, and is
+     * used verbatim here.
+     *
+     * @param {string} operation
+     * @param {{ system: string, user: string }} prompt
+     * @param {number} [fallbackTemperature]
+     */
+    async _completeOperation(operation, prompt, fallbackTemperature) {
+      const role = operationRoles[operation];
+      if (!role) {
+        throw new Error(`no resolved model role is configured for ${operation}`);
+      }
+      const temp = typeof role.temperature === 'number' ? role.temperature : (fallbackTemperature ?? 0);
+      return complete(role, prompt, temp);
     },
     /** Low-level completion on the SCOUT role (used by the reflector). */
     async _completeScout(prompt) {

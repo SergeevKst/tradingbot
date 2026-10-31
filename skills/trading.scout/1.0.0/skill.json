@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "packageId": "trading.scout",
+  "version": "1.0.0",
+  "operation": "SCOUT",
+  "title": "Trade idea scout",
+  "description": "Propose a small number of bounded trade ideas from market data. Proposals only.",
+  "instructions": "instructions.md",
+  "inputSchema": "input.schema.json",
+  "outputSchema": "output.schema.json",
+  "policy": "policy.json",
+  "promptLayout": "prompt-layout.json",
+  "inputContract": {
+    "id": "scout.input",
+    "version": "1.0.0"
+  },
+  "outputContract": {
+    "id": "scout.output",
+    "version": "1.0.0"
+  },
+  "compatibility": {
+    "botVersionRange": ">=0.1.0 <0.2.0",
+    "skillApiVersion": 1
+  },
+  "requiredModelCapabilities": {
+    "temperature": {
+      "min": 0.7,
+      "max": 0.7
+    },
+    "responseFormats": [
+      "json_object"
+    ],
+    "reasoningEfforts": [
+      null
+    ],
+    "minOutputTokens": 256,
+    "maxOutputTokens": 2048,
+    "stream": false
+  },
+  "dependencies": [],
+  "provenance": {
+    "authorId": "baseline-extraction",
+    "createdAt": "2026-10-29T00:00:00Z",
+    "sourceRevision": "unreleased-example"
+  }
+}

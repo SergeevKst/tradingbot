@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "valid-neutral",
+      "fixture": "examples/neutral-market.json",
+      "stage": "output",
+      "response": {
+        "bias": "NEUTRAL",
+        "confidence": 0.4,
+        "rationale": "Price is inside a narrow two-candle range.",
+        "evidence": [
+          "ema21 close to price"
+        ]
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "reject-order-field",
+      "fixture": "examples/neutral-market.json",
+      "stage": "output",
+      "response": {
+        "bias": "NEUTRAL",
+        "confidence": 0.4,
+        "rationale": "Price is inside a narrow two-candle range.",
+        "evidence": [
+          "ema21 close to price"
+        ],
+        "createOrder": true
+      },
+      "expected": "SKILL_OUTPUT_INVALID"
+    },
+    {
+      "id": "reject-bad-confidence",
+      "fixture": "examples/neutral-market.json",
+      "stage": "output",
+      "response": {
+        "bias": "NEUTRAL",
+        "confidence": 1.4,
+        "rationale": "x"
+      },
+      "expected": "SKILL_OUTPUT_INVALID"
+    },
+    {
+      "id": "reject-bad-side-input",
+      "fixture": "examples/neutral-market.json",
+      "stage": "input",
+      "replace": {
+        "pointer": "/market/symbol",
+        "value": ""
+      },
+      "expected": "SKILL_INPUT_INVALID"
+    }
+  ]
+}

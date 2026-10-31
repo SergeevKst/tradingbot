@@ -46,10 +46,14 @@ import {
 } from '../src/config/ai-release-schema.mjs';
 import { ConfigError } from '../src/config/config-error.mjs';
 import {
+  AI_SKILL_MODE,
   CONFLICTING_IDENTITY_ENV,
+  LEGACY_PROMPT_IDENTITY_ENV,
+  PROVIDER_CREDENTIAL_ENV,
   describeAIRuntimeConfig,
   isSingleModeConfig,
   loadAIRuntimeConfig,
+  loadProviderApiKey,
 } from '../src/config/ai-runtime.mjs';
 import { artifactDigest, buildReleaseFixture } from './fixtures/ai-release/factory.mjs';
 
@@ -484,6 +488,24 @@ test('UAI-05A config: single mode requires explicit control, deployment and expe
   assert.throws(() => loadAIRuntimeConfig({ ...base, AI_RUNTIME_MODE: 'dual' }), ConfigError);
 });
 
+test('UAI-05A config: the Skill dispatch mode is a reviewed value, never inferred', () => {
+  const base = {
+    AI_RUNTIME_MODE: 'single',
+    AI_CONTROL_DIR: '/tmp/ai-control',
+    AI_DEPLOYMENT_ID: '11111111-1111-4111-8111-111111111111',
+    AI_EXPECTED_MANIFEST_VERSION: 'release-1',
+    AI_EXPECTED_MANIFEST_SHA256: 'a'.repeat(64),
+  };
+  // Default is the explicit migration compatibility mode.
+  assert.equal(loadAIRuntimeConfig(base).skillMode, 'legacy');
+  assert.equal(loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: 'v2' }).skillMode, 'v2');
+  assert.equal(loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: ' LEGACY ' }).skillMode, 'legacy');
+  // An unknown value fails closed instead of guessing a mode.
+  assert.throws(() => loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: 'auto' }), /AI_SKILL_MODE/);
+  // The mode is part of the redacted description.
+  assert.equal(describeAIRuntimeConfig(loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: 'v2' })).skillMode, 'v2');
+});
+
 test('UAI-05A config: every competing identity variable is a conflict, even with an equal value', () => {
   for (const name of CONFLICTING_IDENTITY_ENV) {
     const env = {
@@ -496,6 +518,56 @@ test('UAI-05A config: every competing identity variable is a conflict, even with
     };
     assert.throws(() => loadAIRuntimeConfig(env), /must be unset/, `${name} must conflict in single mode`);
   }
+});
+
+test('UAI-05A config: a legacy credential alias becomes a v2 provider credential', () => {
+  const base = {
+    AI_RUNTIME_MODE: 'single',
+    AI_CONTROL_DIR: '/tmp/ai-control',
+    AI_DEPLOYMENT_ID: '11111111-1111-4111-8111-111111111111',
+    AI_EXPECTED_MANIFEST_VERSION: 'release-1',
+    AI_EXPECTED_MANIFEST_SHA256: 'a'.repeat(64),
+  };
+  // The lists are disjoint: an identity variable is never a provider credential.
+  assert.deepEqual([...LEGACY_PROMPT_IDENTITY_ENV], ['KIMI_API_KEY']);
+  for (const name of LEGACY_PROMPT_IDENTITY_ENV) {
+    assert.ok(!CONFLICTING_IDENTITY_ENV.includes(name), `${name} must not be a permanent identity conflict`);
+    assert.ok(PROVIDER_CREDENTIAL_ENV.includes(name), `${name} must be a provider credential`);
+  }
+  // Legacy prompt dispatch selects the Kimi provider from this variable, so it
+  // stays a second identity authority there — including in the default mode.
+  assert.throws(() => loadAIRuntimeConfig({ ...base, KIMI_API_KEY: 'k' }), /must be unset/);
+  assert.throws(
+    () => loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: AI_SKILL_MODE.LEGACY, KIMI_API_KEY: 'k' }),
+    /must be unset/,
+  );
+  // v2 takes the provider from the bound model registry, so the same variable
+  // is only a secret: the multi-provider deployment can start.
+  const v2 = loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: AI_SKILL_MODE.V2, KIMI_API_KEY: 'kimi-secret' });
+  assert.equal(v2.skillMode, 'v2');
+  assert.deepEqual([...v2.credentialProviders], ['kimi']);
+  assert.equal(v2.hasApiKey, true);
+  assert.equal(loadProviderApiKey('kimi', { KIMI_API_KEY: 'kimi-secret' }), 'kimi-secret');
+  assert.equal(loadProviderApiKey('deepseek', { KIMI_API_KEY: 'kimi-secret' }), null, 'a key is never reused across providers');
+  // Provider, model and endpoint variables stay refused in v2 as well.
+  assert.throws(() => loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: 'v2', GUARD_MODEL: 'x' }), /must be unset/);
+  assert.throws(() => loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: 'v2', AI_BASE_URL: 'https://x/v1' }), /must be unset/);
+  // Presence is reported redacted, never the key itself.
+  const described = JSON.stringify(describeAIRuntimeConfig(v2));
+  assert.ok(described.includes('"credentialProviders":["kimi"]'));
+  assert.ok(!described.includes('kimi-secret'));
+});
+
+test('UAI-05A config: a v2 dispatch request without single-mode identity is refused', () => {
+  // No manifest identity exists to bind a package to, so an explicit v2 request
+  // must not be silently downgraded to the hard-coded prompts.
+  assert.throws(
+    () => loadAIRuntimeConfig({ AI_SKILL_MODE: AI_SKILL_MODE.V2 }),
+    (error) => error instanceof ConfigError && error.field === 'AI_SKILL_MODE',
+  );
+  // Every legacy-shaped environment still returns the inert legacy config.
+  assert.deepEqual(loadAIRuntimeConfig({ AI_SKILL_MODE: 'legacy' }), { mode: 'legacy' });
+  assert.deepEqual(loadAIRuntimeConfig({ AI_SKILL_MODE: '  LEGACY  ' }), { mode: 'legacy' });
 });
 
 test('UAI-05A config: description is redacted', () => {

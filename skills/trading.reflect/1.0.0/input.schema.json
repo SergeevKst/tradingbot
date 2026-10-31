@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "trade": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "LONG",
+            "SHORT"
+          ]
+        },
+        "entry": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "exit": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "pnlUsd": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "exitCause": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "target",
+            "external",
+            "unknown"
+          ]
+        },
+        "holdMinutes": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mfeUsd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "symbol",
+        "side",
+        "entry",
+        "exit",
+        "pnlUsd",
+        "reason",
+        "exitCause",
+        "holdMinutes",
+        "mfeUsd"
+      ]
+    },
+    "existingRules": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 16000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "trade",
+    "existingRules"
+  ]
+}
