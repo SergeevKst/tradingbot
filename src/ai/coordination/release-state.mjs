@@ -543,7 +543,9 @@ function activate(record, command) {
   };
 
   const next = validateControlRecord({
-    schemaVersion: 1,
+    // Dual readers: a v2-bound generation keeps the v2 schema version so the
+    // joint binding is validated as v2. A v1 record staying v1 is unchanged.
+    schemaVersion: record.schemaVersion === 2 ? 2 : 1,
     deploymentId: record.deploymentId,
     revision: nextRevision(record),
     generation,
@@ -620,6 +622,14 @@ function recover(record, command) {
     reject('recovery requires a retained transition', COORDINATION_ERROR_CODE.INVALID_TRANSITION);
   }
   const descriptor = validateReleaseDescriptor(command.descriptor);
+  // No mixed-version activation: a v2 descriptor requires a migrated v2 record,
+  // and a v1 descriptor can never stage a target into a v2 record.
+  if ((descriptor.binding.schemaVersion === 2 ? 2 : 1) !== (record.schemaVersion === 2 ? 2 : 1)) {
+    reject('descriptor binding schemaVersion does not match the control record', COORDINATION_ERROR_CODE.INVALID_EVIDENCE, {
+      recordSchemaVersion: record.schemaVersion,
+      bindingSchemaVersion: descriptor.binding.schemaVersion,
+    });
+  }
   const reserved = record.highWaterGeneration + 1;
   if (!Number.isSafeInteger(reserved)) {
     reject('generation counter would overflow', COORDINATION_ERROR_CODE.INVALID_TRANSITION);

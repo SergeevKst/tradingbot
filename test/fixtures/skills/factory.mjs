@@ -392,9 +392,10 @@ export function buildFixture(options = {}) {
     runtimePolicy,
     artifact,
     profileReader,
+    profiles,
     modelRegistry,
     preparePlan() {
-      return prepareExecutionPlan({
+      const planResult = prepareExecutionPlan({
         store,
         skillRegistrySha256,
         modelRegistrySha256,
@@ -402,6 +403,11 @@ export function buildFixture(options = {}) {
         artifact,
         profileReader,
       });
+      // A production generation binds the *published* plan bytes; publish the
+      // exact plan the resolver/planner produced so the runtime can verify the
+      // bound digest from the CAS.
+      store.publishExecutionPlan(planResult.plan);
+      return planResult;
     },
     /**
      * @param {{ transport?: any, audit?: any, latch?: any, identity?: any, compositionOverrides?: any }} [input]

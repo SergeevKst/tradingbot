@@ -82,10 +82,18 @@ function pausedEnvelope(operation, cause, requestId) {
 }
 
 /**
- * @param {string} cause
+ * A composition that refuses every operation with the exact
+ * `ACTIVATION_PAUSED` envelope.
+ *
+ * Callers reach this state when the reviewed plan cannot be prepared (missing,
+ * invalid, unapproved or mismatched package) or when a production boundary is
+ * configured for v2 but the admitted generation carries no v2 joint binding.
+ * Both accepted refusals and no result may be produced from it.
+ *
+ * @param {string} cause structural cause (safe diagnostic)
  * @param {() => string} uuid
  */
-function createRefusingComposition(cause, uuid) {
+export function createRefusingComposition(cause, uuid) {
   /**
    * @param {string} operation
    */

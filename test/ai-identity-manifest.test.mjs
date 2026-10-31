@@ -484,6 +484,24 @@ test('UAI-05A config: single mode requires explicit control, deployment and expe
   assert.throws(() => loadAIRuntimeConfig({ ...base, AI_RUNTIME_MODE: 'dual' }), ConfigError);
 });
 
+test('UAI-05A config: the Skill dispatch mode is a reviewed value, never inferred', () => {
+  const base = {
+    AI_RUNTIME_MODE: 'single',
+    AI_CONTROL_DIR: '/tmp/ai-control',
+    AI_DEPLOYMENT_ID: '11111111-1111-4111-8111-111111111111',
+    AI_EXPECTED_MANIFEST_VERSION: 'release-1',
+    AI_EXPECTED_MANIFEST_SHA256: 'a'.repeat(64),
+  };
+  // Default is the explicit migration compatibility mode.
+  assert.equal(loadAIRuntimeConfig(base).skillMode, 'legacy');
+  assert.equal(loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: 'v2' }).skillMode, 'v2');
+  assert.equal(loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: ' LEGACY ' }).skillMode, 'legacy');
+  // An unknown value fails closed instead of guessing a mode.
+  assert.throws(() => loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: 'auto' }), /AI_SKILL_MODE/);
+  // The mode is part of the redacted description.
+  assert.equal(describeAIRuntimeConfig(loadAIRuntimeConfig({ ...base, AI_SKILL_MODE: 'v2' })).skillMode, 'v2');
+});
+
 test('UAI-05A config: every competing identity variable is a conflict, even with an equal value', () => {
   for (const name of CONFLICTING_IDENTITY_ENV) {
     const env = {

@@ -22,14 +22,28 @@ import { getOperationSettings } from '../ai/operation-profiles.mjs';
 import { createGenerationRuntime } from '../ai/runtime.mjs';
 import { createGenerationGuard } from '../ai/coordination/generation-guard.mjs';
 import { COORDINATION_ERROR_CODE, CoordinationError } from '../errors/coordination-error.mjs';
+import { ACTIVATION_PAUSED, isStructuralCause } from '../errors/skill-error.mjs';
 import { ConfigError } from '../config/config-error.mjs';
-import { loadAIRuntimeConfig, loadSingleModeApiKey } from '../config/ai-runtime.mjs';
+import {
+  createProviderCredentialResolver,
+  loadAIRuntimeConfig,
+  loadSingleModeApiKey,
+} from '../config/ai-runtime.mjs';
 import { createDeepSeekChat } from './deepseek-client.mjs';
 import { createReflector } from './reflect.mjs';
 import { createControlStore } from '../ai/coordination/control-store.mjs';
 // ─── Multi-Model Routing Support (v1.2) ──────────────────────────────────────
 import { resolveOperationModel } from '../ai/model-resolver.mjs';
 import { createSkillPackageStore } from '../ai/skills/package-store.mjs';
+import {
+  createProductionDispatch,
+  isPausedEnvelope,
+  SKILL_RUNTIME_MODE,
+} from '../ai/skills/production.mjs';
+import { ADAPTER_CATALOGUE_SHA256, HOST_CONTRACT_CATALOGUE_SHA256 } from '../ai/skills/adapters/catalogue.mjs';
+import { SKILL_API_VERSION } from '../config/skill-package.mjs';
+import { buildMonitorPrompt } from './monitor.mjs';
+import { buildStopcheckPrompt } from './stopcheck.mjs';
 
 /** Operations bound by this participant, in protocol order. */
 export const TELEGRAM_OPERATIONS = Object.freeze(['SCOUT', 'GUARD', 'MONITOR', 'STOPCHECK', 'REFLECT']);
@@ -77,6 +91,146 @@ export function transportOrigin(manifest) {
 }
 
 /**
+ * Project the scout's live market context onto the closed SCOUT host contract
+ * (architecture v1.1 §6.2: "instrument data stripped, stable order"). Everything
+ * the model must not see — tick sizes, order limits, 4h summaries — is dropped
+ * before the package schema runs.
+ *
+ * @param {any} context
+ */
+export function scoutHostInput(context) {
+  const symbols = Array.isArray(/** @type {any} */ (context)?.symbols) ? /** @type {any} */ (context).symbols : [];
+  return {
+    news: typeof /** @type {any} */ (context)?.news === 'string' ? /** @type {any} */ (context).news : null,
+    symbols: symbols.map((snapshot) => ({
+      symbol: snapshot.symbol,
+      lastPrice: snapshot.lastPrice,
+      bid: snapshot.bid ?? null,
+      ask: snapshot.ask ?? null,
+      high24h: snapshot.high24h ?? null,
+      low24h: snapshot.low24h ?? null,
+      avgRange14h: snapshot.avgRange14h ?? null,
+      candles: Array.isArray(snapshot.candles)
+        ? snapshot.candles.map((candle) => ({ o: candle.o, h: candle.h, l: candle.l, c: candle.c, v: candle.v }))
+        : [],
+    })),
+    openPositions: Array.isArray(/** @type {any} */ (context)?.openPositions)
+      ? /** @type {any} */ (context).openPositions.map((position) => ({ symbol: position.symbol, side: position.side }))
+      : null,
+  };
+}
+
+/**
+ * Project the guard call onto the closed GUARD host contract.
+ *
+ * Callers pass `market` in the legacy `{ symbol: snapshot, btc }` shape for
+ * compatibility and, in v2 mode, the raw snapshot in `options.snapshot`.
+ *
+ * @param {any} idea
+ * @param {any} market
+ * @param {{ sentiment?: any, news?: string | null, snapshot?: any, btc?: any }} [options]
+ */
+export function guardHostInput(idea, market, options = {}) {
+  const snapshot = options.snapshot ?? (market?.symbol !== null && typeof market?.symbol === 'object' ? market.symbol : null);
+  const candidate = options.sentimentData ?? options.sentiment;
+  const sentiment = candidate !== null && typeof candidate === 'object' ? candidate : null;
+  return {
+    btc: options.btc ?? market?.btc ?? null,
+    news: typeof options.news === 'string' ? options.news : null,
+    idea: {
+      symbol: idea?.symbol,
+      side: idea?.side,
+      entry: idea?.entry,
+      stopLoss: idea?.stopLoss,
+      takeProfit: idea?.takeProfit,
+    },
+    market:
+      snapshot === null
+        ? null
+        : {
+            symbol: snapshot.symbol,
+            lastPrice: snapshot.lastPrice,
+            bid: snapshot.bid ?? null,
+            ask: snapshot.ask ?? null,
+            high24h: snapshot.high24h ?? null,
+            low24h: snapshot.low24h ?? null,
+            avgRange14h: snapshot.avgRange14h ?? null,
+            candles: Array.isArray(snapshot.candles)
+              ? snapshot.candles.map((candle) => ({ o: candle.o, h: candle.h, l: candle.l, c: candle.c, v: candle.v }))
+              : [],
+          },
+    sentiment:
+      sentiment === null
+        ? null
+        : {
+            fearGreed: Number.isFinite(sentiment.fearGreed) ? sentiment.fearGreed : null,
+            fundingRate: Number.isFinite(sentiment.fundingRate) ? sentiment.fundingRate : null,
+            turnover24hUsd: Number.isFinite(sentiment.turnover24h) ? sentiment.turnover24h : null,
+            openInterestUsd: Number.isFinite(sentiment.openInterestValue) ? sentiment.openInterestValue : null,
+          },
+  };
+}
+
+/**
+ * Project a closed trade onto the closed REFLECT host contract.
+ *
+ * @param {any} trade
+ */
+export function reflectHostInput(trade) {
+  return {
+    trade: {
+      symbol: trade?.symbol,
+      side: trade?.side,
+      entry: trade?.entry,
+      exit: trade?.exit,
+      pnlUsd: trade?.pnlUsd,
+      reason: trade?.reason,
+      exitCause: trade?.exitCause,
+      holdMinutes: Number.isFinite(trade?.holdMinutes) ? trade.holdMinutes : null,
+      mfeUsd: Number.isFinite(trade?.mfeUsd) ? trade.mfeUsd : null,
+    },
+    existingRules: typeof trade?.existingRules === 'string' ? trade.existingRules : null,
+  };
+}
+
+/**
+ * Project a typed MONITOR/STOPCHECK host contract back onto the legacy prompt
+ * input for the explicitly authorized `legacy` compatibility mode only. v2 never
+ * calls this: the packaged layout renders the typed DTO directly.
+ *
+ * @param {any} input
+ */
+export function legacyMonitorPromptInput(input) {
+  return {
+    position: { ...input.position },
+    market: {
+      symbol: input.market.symbol,
+      markPrice: input.market.lastPrice,
+      bid: input.market.bid ?? null,
+      ask: input.market.ask ?? null,
+      kind: input.position.kind,
+      atr14h: input.market.atr14h ?? null,
+      trend: input.market.trend,
+      btc: input.btc ?? null,
+      candles: input.market.candles,
+    },
+    newsText: typeof input.news === 'string' ? input.news : '',
+  };
+}
+
+/**
+ * @param {string} workToken
+ * @returns {string}
+ */
+function skillWorkToken(workToken) {
+  if (typeof workToken === 'string') return workToken;
+  if (workToken !== null && typeof workToken === 'object') {
+    return String(/** @type {any} */ (workToken).id ?? /** @type {any} */ (workToken).token ?? randomUUID());
+  }
+  return randomUUID();
+}
+
+/**
  * @typedef {object} TelegramCompositionOptions
  * @property {any} config single-mode runtime config
  * @property {any} controlStore
@@ -119,7 +273,23 @@ export function createTelegramAIComposition(options) {
     : () => loadSingleModeApiKey();
   const storage = new AsyncLocalStorage();
 
-  /** @type {{ client: any, reflector: any, manifest: any, profile: any } | null} */
+  // Reviewed dispatch mode. `legacy` is the explicit migration compatibility
+  // path on a v1 record; `v2` routes every one of the five operations through
+  // its approved package and bound model identity (architecture §10 Phase C/E).
+  const skillMode = options.skillMode ?? /** @type {any} */ (config).skillMode ?? SKILL_RUNTIME_MODE.LEGACY;
+  const skillTransport = options.skillTransport ?? transport.skillTransport ?? null;
+  const credentialProvider = options.credentialProvider
+    ?? transport.credentialProvider
+    ?? createProviderCredentialResolver({ env: options.env });
+  const skillArtifact = options.skillArtifact ?? {
+    artifactSha256,
+    botVersion: options.botVersion ?? '0.1.0',
+    skillApiVersion: SKILL_API_VERSION,
+    adapterCatalogueSha256: ADAPTER_CATALOGUE_SHA256,
+    hostContractCatalogueSha256: HOST_CONTRACT_CATALOGUE_SHA256,
+  };
+
+  /** @type {{ client?: any, reflector?: any, skill?: any, manifest: any, profile: any } | null} */
   let facade = null;
 
   // ─── Per-operation multi-model routing cache (v1.2) ──────────────────────────
@@ -208,9 +378,95 @@ export function createTelegramAIComposition(options) {
 
 
   /**
+   * Build the v2 runtime for the five Telegram operations.
+   *
+   * No prompt or chat facade is constructed: the packaged instructions, layout
+   * and per-operation model identity come from the verified execution plan. A
+   * structural fault returns the typed `ACTIVATION_PAUSED` envelope through
+   * every wrapper and closes participant-local admission.
+   *
+   * @param {any} input runtimeFactory input
+   */
+  function skillRuntimeFactory(input) {
+    const dispatch = createProductionDispatch({
+      configuredMode: skillMode,
+      binding: input.binding ?? null,
+      controlDir: config.controlDir,
+      controlStore,
+      store: options.skillStore,
+      profileReader: options.profileReader,
+      artifact: skillArtifact,
+      transport: skillTransport ?? undefined,
+      fetchImpl: transport.fetchImpl ?? globalThis.fetch,
+      credentialProvider,
+      identity: {
+        deploymentId: config.deploymentId,
+        generation: input.generation,
+        bindingSha256: input.binding?.bindingSha256 ?? null,
+        releaseDescriptorSha256: null,
+        slot: input.slot,
+        instanceId: input.instanceId,
+      },
+      clock,
+      uuid: randomUUID,
+      audit: options.skillAudit ?? null,
+      adapters: options.adapters,
+      freshnessMs: options.skillFreshnessMs,
+    });
+    facade = { skill: dispatch, manifest: input.manifest, profile: input.profile };
+    return createGenerationRuntime({
+      binding: input.binding,
+      generation: input.generation,
+      deploymentId: config.deploymentId,
+      slot: input.slot,
+      instanceId: input.instanceId,
+      manifest: input.manifest,
+      profile: input.profile,
+      operations: TELEGRAM_OPERATIONS,
+      guard,
+      clock,
+      invoke: async ({ operation, request, workToken }) => {
+        // Return the typed refusal unchanged: participant admission is closed by
+        // the workflow boundary after the guard's post-invoke fence check.
+        return dispatch.composition[operation](
+          /** @type {any} */ (request).input,
+          { workToken: skillWorkToken(workToken) },
+        );
+      },
+    });
+  }
+
+  /**
+   * Map a v2 skill result onto the compatibility success shape trusted callers
+   * already consume (`{prompt, parsed, raw}`), keeping the typed refusal intact.
+   *
+   * @param {any} result
+   * @param {(value: any) => object} shapeValue
+   */
+  function compatResult(result, shapeValue) {
+    if (isPausedEnvelope(result)) return result;
+    if (result.ok === false) {
+      return Object.freeze({
+        prompt: null,
+        parsed: Object.freeze({ ok: false, issues: Object.freeze([result.code]) }),
+        raw: '',
+        failureCode: result.code,
+        requestId: result.requestId,
+      });
+    }
+    return Object.freeze({
+      prompt: null,
+      parsed: Object.freeze({ ok: true, ...shapeValue(result.value) }),
+      raw: '',
+      provenance: result.provenance,
+    });
+  }
+
+  /**
    * @param {{ manifest: any, profile: any, binding: any, generation: number, target: boolean, slot: string, instanceId: string }} input
    */
   function runtimeFactory(input) {
+    if (skillMode === SKILL_RUNTIME_MODE.V2) return skillRuntimeFactory(input);
     const settings = assertProfileSupportedByFacade(input.profile);
     const apiKey = apiKeyLoader();
     // ─── Per-operation model resolution (v1.2 multi-model routing) ────────
@@ -339,7 +595,18 @@ export function createTelegramAIComposition(options) {
       if (!existing.state.released) guard.check(existing.token);
       try {
         const result = await fn(existing.token, existing.work);
-        if (!existing.state.released) guard.check(existing.token);
+        if (!existing.failed) {
+          if (!existing.state.released) guard.check(existing.token);
+          // A structural Skill refusal taints the joined workflow — no sibling
+          // or continuation may dispatch an AI-derived effect — and closes
+          // participant admission for every later call. The close happens after
+          // the fence check so the typed envelope is not replaced by a guard
+          // exception.
+          if (isPausedEnvelope(result)) {
+            existing.failed = true;
+            guard.closeAdmission(/** @type {any} */ (result).cause);
+          }
+        }
         return result;
       } catch (error) {
         existing.failed = true;
@@ -356,7 +623,13 @@ export function createTelegramAIComposition(options) {
       // A handle that converted its counted work into a pending effect sidecar
       // (an exit proposal, a preview ticket) is no longer checked here: the
       // sidecar is the tracked obligation from that point on.
-      if (!state.released) guard.check(token);
+      if (!scope.failed) {
+        if (!state.released) guard.check(token);
+        if (isPausedEnvelope(result)) {
+          scope.failed = true;
+          guard.closeAdmission(/** @type {any} */ (result).cause);
+        }
+      }
       return result;
     } finally {
       // A retained token is not released here: endWork refuses to release an
@@ -475,11 +748,17 @@ export function createTelegramAIComposition(options) {
   }
 
   /**
-   * The guarded equivalent of `createDeepSeekChat`. Methods mirror the legacy
-   * facade so `bot.mjs` wiring stays a one-line change; each call is scoped to a
-   * counted workflow.
+   * The guarded equivalent of `createDeepSeekChat`.
+   *
+   * In `legacy` mode the methods mirror the legacy facade exactly (prompt in,
+   * `{prompt, parsed, raw}` out) so the explicitly authorized migration path is
+   * byte-compatible. In `v2` mode the trusted callers supply typed DTOs and the
+   * runtime — not a caller prompt — renders the model input. The prompt-taking
+   * entry points are then offline-only and refuse to run.
    */
   const guardedClient = Object.freeze({
+    /** Which reviewed dispatch mode this client implements. */
+    operationMode: skillMode,
     get provider() {
       return facade?.manifest.providerId ?? null;
     },
@@ -492,29 +771,106 @@ export function createTelegramAIComposition(options) {
     get baseUrl() {
       return facade?.manifest.canonicalBaseUrl ?? null;
     },
-    getCacheStats: () => facade?.client.getCacheStats?.() ?? { hits: 0, misses: 0, zeroHitCalls: 0, calls: 0, hitRatio: 0 },
+    getCacheStats: () => facade?.client?.getCacheStats?.() ?? { hits: 0, misses: 0, zeroHitCalls: 0, calls: 0, hitRatio: 0 },
     /** @param {object} context */
-    generateIdeas: (context) => runInWorkflow('SCOUT', (token) => invoke('SCOUT', { context }, token)),
+    generateIdeas: (context) => {
+      if (skillMode === SKILL_RUNTIME_MODE.V2) {
+        return runInWorkflow('SCOUT', async (token) => {
+          const result = await invoke('SCOUT', { input: scoutHostInput(context) }, token);
+          return compatResult(result, (value) => ({ ideas: value.ideas, issues: [] }));
+        });
+      }
+      return runInWorkflow('SCOUT', (token) => invoke('SCOUT', { context }, token));
+    },
     /** @param {object} idea @param {object} market @param {object} [opts] */
-    filterIdea: (idea, market, opts = {}) =>
-      runInWorkflow('GUARD', (token) => invoke('GUARD', { idea, market, options: opts }, token)),
+    filterIdea: (idea, market, opts = {}) => {
+      if (skillMode === SKILL_RUNTIME_MODE.V2) {
+        return runInWorkflow('GUARD', async (token) => {
+          const result = await invoke('GUARD', { input: guardHostInput(idea, market, opts) }, token);
+          return compatResult(result, (value) => ({ value }));
+        });
+      }
+      return runInWorkflow('GUARD', (token) => invoke('GUARD', { idea, market, options: opts }, token));
+    },
     /**
-     * Low-level guard completion. `operation` lets the monitor and stop-check
-     * remain distinguishable in the release evidence.
+     * Typed MONITOR dispatch (v2). Legacy callers keep `_completeGuard(prompt)`.
+     *
+     * @param {object} input closed monitor host contract
+     */
+    monitor: (input) => {
+      if (skillMode !== SKILL_RUNTIME_MODE.V2) {
+        return runInWorkflow('MONITOR', (token) =>
+          invoke('MONITOR', { prompt: buildMonitorPrompt(legacyMonitorPromptInput(input)) }, token),
+        );
+      }
+      return runInWorkflow('MONITOR', async (token) => {
+        const result = await invoke('MONITOR', { input }, token);
+        return compatResult(result, (value) => ({ value }));
+      });
+    },
+    /**
+     * Typed STOPCHECK dispatch (v2).
+     *
+     * @param {object} input closed stop-check host contract
+     */
+    stopcheck: (input) => {
+      if (skillMode !== SKILL_RUNTIME_MODE.V2) {
+        return runInWorkflow('STOPCHECK', (token) =>
+          invoke('STOPCHECK', { prompt: buildStopcheckPrompt(legacyMonitorPromptInput(input)) }, token),
+        );
+      }
+      return runInWorkflow('STOPCHECK', async (token) => {
+        const result = await invoke('STOPCHECK', { input }, token);
+        return compatResult(result, (value) => ({ value }));
+      });
+    },
+    /**
+     * Low-level guard completion on a caller-built prompt. Offline-only: v2
+     * production callers supply typed DTOs, so this path refuses.
      *
      * @param {object} prompt
      * @param {{ operation?: 'MONITOR' | 'STOPCHECK' }} [opts]
      */
     _completeGuard: (prompt, opts = {}) => {
       const operation = opts.operation === 'STOPCHECK' ? 'STOPCHECK' : 'MONITOR';
+      if (skillMode === SKILL_RUNTIME_MODE.V2) {
+        throw new CoordinationError('prompt-based completion is offline-only; supply a typed operation DTO', {
+          code: COORDINATION_ERROR_CODE.CONFIGURATION_ERROR,
+          details: { operation },
+        });
+      }
       return runInWorkflow(operation, (token) => invoke(operation, { prompt }, token));
     },
     /** @param {object} prompt */
-    completeMonitor: (prompt) => runInWorkflow('MONITOR', (token) => invoke('MONITOR', { prompt }, token)),
+    completeMonitor: (prompt) => {
+      if (skillMode === SKILL_RUNTIME_MODE.V2) {
+        throw new CoordinationError('prompt-based completion is offline-only; supply a typed operation DTO', {
+          code: COORDINATION_ERROR_CODE.CONFIGURATION_ERROR,
+          details: { operation: 'MONITOR' },
+        });
+      }
+      return runInWorkflow('MONITOR', (token) => invoke('MONITOR', { prompt }, token));
+    },
     /** @param {object} prompt */
-    completeStopcheck: (prompt) => runInWorkflow('STOPCHECK', (token) => invoke('STOPCHECK', { prompt }, token)),
+    completeStopcheck: (prompt) => {
+      if (skillMode === SKILL_RUNTIME_MODE.V2) {
+        throw new CoordinationError('prompt-based completion is offline-only; supply a typed operation DTO', {
+          code: COORDINATION_ERROR_CODE.CONFIGURATION_ERROR,
+          details: { operation: 'STOPCHECK' },
+        });
+      }
+      return runInWorkflow('STOPCHECK', (token) => invoke('STOPCHECK', { prompt }, token));
+    },
     /** @param {object} trade */
-    reflect: (trade) => runInWorkflow('REFLECT', (token) => invoke('REFLECT', { trade }, token)),
+    reflect: (trade) => {
+      if (skillMode === SKILL_RUNTIME_MODE.V2) {
+        return runInWorkflow('REFLECT', async (token) => {
+          const result = await invoke('REFLECT', { input: reflectHostInput(trade) }, token);
+          return compatResult(result, (value) => ({ value }));
+        });
+      }
+      return runInWorkflow('REFLECT', (token) => invoke('REFLECT', { trade }, token));
+    },
   });
 
   /**
@@ -531,9 +887,17 @@ export function createTelegramAIComposition(options) {
   function getChatClient() {
     const status = guard.status();
     if (!status.inferenceEnabled) {
+      // A participant closed by a structural Skill fault reports the public
+      // ACTIVATION_PAUSED with the safe cause in diagnostic metadata, never a
+      // SKILL_* code as the public discriminant (architecture §6.3).
+      const closedBySkill = isStructuralCause(status.errorCode);
       throw new CoordinationError('Telegram AI is not admitted in the current release generation', {
-        code: status.errorCode ?? COORDINATION_ERROR_CODE.ACTIVATION_PAUSED,
-        details: { phase: status.phase, generation: status.generation },
+        code: closedBySkill ? ACTIVATION_PAUSED : status.errorCode ?? COORDINATION_ERROR_CODE.ACTIVATION_PAUSED,
+        details: {
+          phase: status.phase,
+          generation: status.generation,
+          ...(closedBySkill ? { cause: status.errorCode } : {}),
+        },
       });
     }
     return guardedClient;
@@ -546,7 +910,16 @@ export function createTelegramAIComposition(options) {
   async function reflect(trade) {
     if (!guard.status().inferenceEnabled) return null;
     try {
-      return await guardedClient.reflect(trade);
+      const result = await guardedClient.reflect(trade);
+      if (isPausedEnvelope(result)) return result;
+      if (skillMode === SKILL_RUNTIME_MODE.V2) {
+        if (result !== null && typeof result === 'object' && result.failureCode) {
+          // Ordinary per-request failure: keep the safe code, write nothing.
+          return Object.freeze({ ok: false, code: result.failureCode, requestId: result.requestId ?? null });
+        }
+        return result?.parsed?.ok === true ? result.parsed.value : null;
+      }
+      return result;
     } catch (error) {
       if (error instanceof CoordinationError) return null;
       throw error;

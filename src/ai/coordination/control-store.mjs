@@ -82,6 +82,7 @@ export const CONTROL_LAYOUT = Object.freeze({
   observers: 'observers',
   evidence: 'evidence',
   transitions: 'transitions',
+  migrations: 'migrations',
   audit: 'audit.jsonl',
   lock: 'writer.lock',
 });
@@ -676,6 +677,83 @@ export function createControlStore(options) {
   }
 
   /**
+   * Apply the offline administrative schema migration (architecture v1.1 §10
+   * Phase C).
+   *
+   * Only a paused or quiescing v1 record may be converted, and conversion lands
+   * PAUSED and unbound: no inference, no activation, no silent replacement of
+   * the active generation. The exact pre-migration bytes are retained as an
+   * immutable forensic backup; they are never copied back over a running store.
+   * This is the only writer allowed to change `control.json` schemaVersion.
+   *
+   * @param {{ record: Readonly<object>, expectedRevision: number, operatorApprovalId: string }} input
+   * @returns {{ record: Readonly<object>, backupSha256: string, revision: number }}
+   */
+  function migrateRecord(input) {
+    if (
+      input === null ||
+      typeof input !== 'object' ||
+      input.record === null ||
+      typeof input.record !== 'object' ||
+      !Number.isSafeInteger(input.expectedRevision) ||
+      typeof input.operatorApprovalId !== 'string' ||
+      input.operatorApprovalId === ''
+    ) {
+      fail(COORDINATION_ERROR_CODE.INVALID_TRANSITION, 'migrateRecord requires { record, expectedRevision, operatorApprovalId }');
+    }
+    return withWriterLock(({ record }) => {
+      if (record === null) {
+        fail(COORDINATION_ERROR_CODE.STORE_UNAVAILABLE, 'control store is not initialized');
+      }
+      if (record.revision !== input.expectedRevision) {
+        fail(COORDINATION_ERROR_CODE.INVALID_TRANSITION, 'control revision changed since it was read', {
+          expectedRevision: input.expectedRevision,
+          actualRevision: record.revision,
+        });
+      }
+      if (record.schemaVersion !== 1) {
+        fail(COORDINATION_ERROR_CODE.INVALID_TRANSITION, 'only a schemaVersion 1 control record can be migrated');
+      }
+      if (record.phase !== PHASE.PAUSED && record.phase !== PHASE.QUIESCING) {
+        fail(COORDINATION_ERROR_CODE.INVALID_TRANSITION, 'a v1 record must be paused or quiescing before migration', {
+          phase: record.phase,
+        });
+      }
+      const converted = validateControlRecord(input.record);
+      if (converted.schemaVersion !== 2) {
+        fail(COORDINATION_ERROR_CODE.INVALID_TRANSITION, 'the migrated record must use schemaVersion 2');
+      }
+      if (converted.phase !== PHASE.PAUSED || converted.active !== null || converted.target !== null) {
+        fail(COORDINATION_ERROR_CODE.INVALID_TRANSITION, 'the migrated record must land PAUSED and unbound');
+      }
+      if (converted.deploymentId !== record.deploymentId) {
+        fail(COORDINATION_ERROR_CODE.IDENTITY_MISMATCH, 'the migrated record belongs to another deployment');
+      }
+      if (converted.revision !== record.revision + 1) {
+        fail(COORDINATION_ERROR_CODE.INVALID_TRANSITION, 'the migrated record must advance the revision by exactly one');
+      }
+      if (converted.generation !== record.generation || converted.highWaterGeneration < record.highWaterGeneration) {
+        fail(COORDINATION_ERROR_CODE.INVALID_TRANSITION, 'the migrated record must preserve the generation high-water mark');
+      }
+      const backup = writeContentAddressed(
+        path.join(subdir(CONTROL_LAYOUT.migrations, { create: true }), `control-before-v2-r${record.revision}.json`),
+        record,
+        { label: 'pre-migration control record' },
+      );
+      writeRecord(converted, record.revision, {});
+      appendAudit({
+        kind: 'control.migrated_v2',
+        deploymentId: record.deploymentId,
+        revision: converted.revision,
+        operatorApprovalId: input.operatorApprovalId,
+        backupSha256: backup.sha256,
+      });
+      logger.info('control store migrated to schemaVersion 2', { deploymentId: record.deploymentId, revision: converted.revision });
+      return { record: converted, backupSha256: backup.sha256, revision: converted.revision };
+    }, { purpose: 'migrate-schema' });
+  }
+
+  /**
    * Apply one release command under the writer lock with compare-and-swap on the
    * expected revision.
    *
@@ -1187,6 +1265,7 @@ export function createControlStore(options) {
     controlDir: rawDir,
     deploymentId: options.deploymentId ?? null,
     initialize,
+    migrateRecord,
     transact,
     readRecord,
     tryReadRecord,

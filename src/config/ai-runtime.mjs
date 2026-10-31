@@ -27,6 +27,25 @@ export const AI_RUNTIME_MODE = Object.freeze({
 export const AI_RUNTIME_MODES = Object.freeze(Object.values(AI_RUNTIME_MODE));
 
 /**
+ * Reviewed dispatch mode of the AI operations themselves.
+ *
+ *   legacy — the pre-Skill prompt/completion dispatch. Allowed only as an
+ *            explicit migration compatibility mode on a v1 record
+ *            (architecture v1.1 §10 Phase C).
+ *   v2     — every operation dispatches through its approved Skill Package and
+ *            bound model identity. Requires a schemaVersion 2 joint binding.
+ *
+ * This is a reviewed configuration value, never inferred from a missing
+ * registry, file presence or process state.
+ */
+export const AI_SKILL_MODE = Object.freeze({
+  LEGACY: 'legacy',
+  V2: 'v2',
+});
+
+export const AI_SKILL_MODES = Object.freeze(Object.values(AI_SKILL_MODE));
+
+/**
  * Environment variables that would create a second identity authority. A
  * non-empty value in single mode is a configuration error.
  */
@@ -131,6 +150,14 @@ export function loadAIRuntimeConfig(env = process.env) {
       field: 'AI_PARTICIPANT_SLOT',
     });
   }
+  const rawSkillMode = isAbsent(env.AI_SKILL_MODE)
+    ? AI_SKILL_MODE.LEGACY
+    : String(env.AI_SKILL_MODE).trim().toLowerCase();
+  if (!AI_SKILL_MODES.includes(rawSkillMode)) {
+    throw new ConfigError(`AI_SKILL_MODE must be one of: ${AI_SKILL_MODES.join(', ')}`, {
+      field: 'AI_SKILL_MODE',
+    });
+  }
   const rawArtifact = isAbsent(env.AI_ARTIFACT_SHA256) ? null : String(env.AI_ARTIFACT_SHA256).trim().toLowerCase();
   if (rawArtifact !== null && !DIGEST_PATTERN.test(rawArtifact)) {
     throw new ConfigError('AI_ARTIFACT_SHA256 must be a SHA-256 digest when set', { field: 'AI_ARTIFACT_SHA256' });
@@ -150,6 +177,7 @@ export function loadAIRuntimeConfig(env = process.env) {
     controlDir: path.resolve(controlDir),
     deploymentId,
     slot: rawSlot,
+    skillMode: rawSkillMode,
     expectedManifestVersion,
     expectedManifestSha256,
     artifactSha256: rawArtifact,
@@ -173,10 +201,11 @@ export function describeAIRuntimeConfig(config) {
     controlDir: config.controlDir,
     deploymentId: config.deploymentId,
     slot: config.slot,
+    skillMode: config.skillMode,
     expectedManifestVersion: config.expectedManifestVersion,
     expectedManifestSha256: config.expectedManifestSha256,
     artifactSha256: config.artifactSha256,
-    hasApiKey: config.hasApiKey,
+    hasApiKey: /** @type {any} */ (config).hasApiKey,
   });
 }
 
@@ -203,4 +232,48 @@ export function loadSingleModeApiKey(env = process.env) {
     throw new ConfigError('AI_API_KEY is required to enable real inference', { field: 'AI_API_KEY' });
   }
   return String(key);
+}
+
+/**
+ * Provider-scoped credential lookup for the v2 transport (architecture §6.1:
+ * a credential is selected by resolved provider/endpoint and injected only
+ * inside the transport). A key is never reused across origins.
+ *
+ * @param {string} providerId
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string | null}
+ */
+export function loadProviderApiKey(providerId, env = process.env) {
+  const candidates = (() => {
+    switch (providerId) {
+      case 'deepseek':
+        return ['AI_API_KEY', 'DEEPSEEK_API_KEY'];
+      case 'kimi':
+        return ['KIMI_API_KEY'];
+      case 'openrouter':
+        return ['OPENROUTER_API_KEY'];
+      default:
+        return [];
+    }
+  })();
+  for (const name of candidates) {
+    if (!isAbsent(env[name])) return String(env[name]);
+  }
+  return null;
+}
+
+/**
+ * Build a `credentialProvider(identity)` callback for the v2 transport, keyed to
+ * the resolved provider identity.
+ *
+ * @param {{ env?: Record<string, string | undefined> }} [input]
+ * @returns {(identity: { providerId: string }) => string | null}
+ */
+export function createProviderCredentialResolver(input = {}) {
+  const env = input.env ?? process.env;
+  return (identity) => {
+    const providerId = identity !== null && typeof identity === 'object' ? identity.providerId : null;
+    if (typeof providerId !== 'string' || providerId === '') return null;
+    return loadProviderApiKey(providerId, env);
+  };
 }

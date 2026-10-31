@@ -25,6 +25,8 @@ operator-signed activation approval.
 | Transport (injected + OpenAI-compatible) | `src/ai/skills/transport.mjs` | `test/skill-runtime.test.mjs` |
 | Six operation adapters | `src/ai/skills/adapters/*.mjs` | `test/skill-runtime.test.mjs`, `test/skill-integration.test.mjs` |
 | Public operation boundary | `src/ai/skills/composition.mjs` | `test/skill-structural-refusal.test.mjs` |
+| Production dispatch (v2 binding -> verified CAS -> runtime) | `src/ai/skills/production.mjs` | `test/skill-production-wiring.test.mjs` |
+| Core ANALYZE + Telegram participant wiring | `src/ai/core-ai-composition.mjs`, `src/telegram/ai-composition.mjs` | `test/skill-production-wiring.test.mjs` |
 | Migration and rollback rules | `src/ai/skills/migration.mjs` | `test/skill-binding-v2.test.mjs` |
 | Six data packages | `skills/<packageId>/1.0.0/` | `test/skill-integration.test.mjs` |
 | Offline administration | `scripts/skill_package.mjs`, `scripts/skill_compare.mjs` | CLI smoke in review |
@@ -89,7 +91,44 @@ change or a same-generation restart. Clearing it fleet-wide requires the
 authorized higher-generation transition; rollback to old content also needs a
 new, higher generation.
 
-## 4. Operating the offline tooling
+## 4. Production dispatch
+
+`AI_SKILL_MODE` selects the reviewed dispatch path for the two production
+participants (core ANALYZE and the Telegram participant). It is a reviewed
+configuration value, never inferred from a missing registry, a directory scan or
+the environment of a running process.
+
+| `AI_SKILL_MODE` | Control record | Behaviour |
+|---|---|---|
+| `legacy` (default) | v1 | The pre-Skill prompt/completion dispatch. This is the explicitly authorized migration compatibility mode (architecture §10 Phase C). |
+| `legacy` | v2 | Refused: every operation answers `ACTIVATION_PAUSED` with cause `SKILL_INCOMPATIBLE`. |
+| `v2` | v2 | Every operation dispatches through its approved package and bound model identity. |
+| `v2` | v1 / empty | Refused: every operation answers `ACTIVATION_PAUSED` with cause `SKILL_REGISTRY_INVALID`. |
+
+In `v2` mode:
+
+1. The admitted generation's schemaVersion 2 binding supplies
+   `skillRegistrySha256`, `modelRegistrySha256`, `executionPlanSha256` and
+   `runtimePolicySha256`.
+2. `src/ai/skills/production.mjs` reads each document from the immutable CAS,
+   re-derives the plan and requires `composition.planSha256` to equal the bound
+   `executionPlanSha256`. A plan that does not reproduce the approved digest is
+   refused (`SKILL_INTEGRITY_MISMATCH`, or `SKILL_MISSING` when the plan bytes
+   were never published).
+3. Each operation is rendered from its package instructions/layout and sent to
+   its own resolved model identity with the reviewed settings. The legacy chat
+   facade, the hard-coded prompts and `_completeGuard(prompt)` are not used:
+   those entry points throw `CONFIGURATION_ERROR` in v2 mode.
+4. Provider credentials are selected by resolved provider identity
+   (`createProviderCredentialResolver`) and injected only inside the transport; a
+   key is never reused across origins.
+
+The Telegram composition exposes typed `monitor(input)` / `stopcheck(input)`
+methods for this path and keeps `generateIdeas` / `filterIdea` as structured
+wrappers. `getChatClient().operationMode` tells a trusted caller which mode the
+client implements, so a call site never has to guess.
+
+## 5. Operating the offline tooling
 
 ```bash
 # validate one package (structural + schema + examples + acceptance DSL)
@@ -124,7 +163,7 @@ skill-attestations/<digest>.json           signed publication approval
 skill-revocations/<digest>.json            signed revocation events
 ```
 
-## 5. Release identity
+## 6. Release identity
 
 `BindingV2` keeps the five v1 fields for lineage and adds
 `modelRegistrySha256`, `skillRegistrySha256`, `executionPlanSha256`,
@@ -136,20 +175,27 @@ considered equal, so a mixed participant set cannot arm.
 Release descriptor v2 adds `skillApprovalRefs` (six package digest -> attestation
 digest pairs) and `planApprovalRef`; both are inside the descriptor digest.
 
-## 6. Migration and rollback
+## 7. Migration and rollback
 
 - A v1 control record may be converted **only** while `PAUSED` or `QUIESCING`.
   The result is a validated v2 `PAUSED` record with no active or target binding,
   preserved deployment, monotonic generation high-water mark, inventory and the
   prior descriptor digest as audit evidence. Conversion performs no inference.
+- The authorized writer is `controlStore.migrateRecord({ record, expectedRevision,
+  operatorApprovalId })`. It is the only path that changes `control.json`
+  schemaVersion: it validates the converted record, refuses any other phase or
+  schema, keeps the exact pre-migration bytes under `migrations/` as a forensic
+  backup, audits the transition and never copies the backup back over a running
+  store.
 - Runtime mode is never inferred from the environment: `v2` requires a
-  schemaVersion 2 control record, `legacy` refuses one. Old binaries must reject
-  v2 records (fail closed), not silently ignore the new fields.
+  schemaVersion 2 control record, `legacy` refuses one. A v2 descriptor cannot be
+  staged into a v1 record and a v1 descriptor cannot be staged into a v2 record,
+  so mixed-version activation is rejected at the release barrier.
 - Rollback targets a previously approved complete v2 pair at a strictly higher
   generation. Revoked or missing packages cannot be restored, and there is no
   online rollback to a v1-only binary.
 
-## 7. Model routing prerequisites (SKILL-01)
+## 8. Model routing prerequisites (SKILL-01)
 
 The verified v1.2 integration gaps are closed in this branch:
 
@@ -167,10 +213,17 @@ The verified v1.2 integration gaps are closed in this branch:
 5. The `api.moonshot.ai` host no longer silently rewrites the reviewed
    temperature; a profile that the host cannot honour is rejected.
 
-## 8. Known limitations (not production activation)
+## 9. Known limitations (not production activation)
 
 - Production activation is out of scope: there is no operator-signed v2
   activation, no live deployment and no live model call in this branch.
+- The release tooling (`scripts/ai_release_*.mjs`) still emits v1 descriptors and
+  bindings. A v2 generation requires (a) the execution plan and runtime policy to
+  be published into the CAS (`store.publishExecutionPlan`,
+  `store.publishRuntimePolicy`), and (b) a schemaVersion 2 release descriptor with
+  the six `skillApprovalRefs` and `planApprovalRef`. `scripts/skill_package.mjs`
+  publishes packages and registries only, so assembling a signed v2 candidate
+  descriptor is still a release-engineering step, not a CLI verb.
 - ACK, observer receipts and participant target grants keep the schemaVersion 1
   body in this branch; they compare bindings through
   `bindingComparisonFields`, so a v2 binding is compared field-by-field, but a

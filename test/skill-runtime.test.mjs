@@ -113,6 +113,32 @@ describe('Ordinary per-request failures never latch (AC-04 contrast cases)', () 
     }
   });
 
+  test('duplicate JSON keys are rejected instead of silently collapsed', async () => {
+    const fx = buildFixture();
+    try {
+      // JSON.parse keeps the last duplicate member, so a model answer with two
+      // `bias` fields would otherwise be accepted as one unambiguous verdict.
+      const answerWithDuplicates = '{"bias":"BULLISH","confidence":0.6,"rationale":"x","bias":"BEARISH"}';
+      const direct = answerWithDuplicates;
+      const nested = JSON.stringify({
+        choices: [{ message: { role: 'assistant', content: answerWithDuplicates } }],
+      });
+      for (const body of [direct, nested]) {
+        const transport = fakeTransport(() => ({ status: 200, body }));
+        const { runtime } = runtimeFor(fx, { transport });
+        const result = await runtime.run({ operation: 'ANALYZE', input: SAMPLE_INPUTS.ANALYZE }, work());
+        assert.equal(result.ok, false, 'a duplicate-key answer is unusable');
+        assert.equal(result.code, 'SKILL_OUTPUT_INVALID');
+        assert.equal(result.retryable, false);
+        assert.equal(result.provenance, undefined, 'no provenance for an unusable answer');
+        assert.equal(runtime.admissionState(), 'OPEN', 'duplicate keys are an ordinary per-request failure');
+        assert.equal(transport.calls.length, 1, 'the answer is rejected after the single bounded call');
+      }
+    } finally {
+      fx.cleanup();
+    }
+  });
+
   test('a tool request is discarded as SKILL_TOOL_DENIED', async () => {
     const fx = buildFixture();
     try {

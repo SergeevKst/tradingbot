@@ -20,7 +20,7 @@
  * @module ai/skills/runtime
  */
 import { randomUUID } from 'node:crypto';
-import { digestJson, isPlainObject } from '../../config/jcs.mjs';
+import { digestJson, isPlainObject, parseStrictJson } from '../../config/jcs.mjs';
 import { ACTIVATION_PAUSED, SkillError, toFailureEnvelope, ordinaryError, structuralError } from '../../errors/skill-error.mjs';
 import { AI_OPERATIONS } from '../operation-profiles.mjs';
 import { renderSkillMessages } from './renderer.mjs';
@@ -155,6 +155,14 @@ export function isTrustedSkillResult(value) {
 }
 
 /**
+ * Parse a provider answer with the repository strict JSON parser.
+ *
+ * `JSON.parse` silently keeps the last duplicate key, so an answer carrying two
+ * `bias` fields (or any other repeated member) would be accepted as if the
+ * model had produced one unambiguous object. Architecture v1.1 §3.1 step 6 and
+ * §9.2 require duplicate-key rejection, so the strict parser is used for both
+ * the direct body and the nested chat `message.content`.
+ *
  * @param {unknown} body
  * @returns {unknown}
  */
@@ -164,9 +172,11 @@ function parseModelJson(body) {
   }
   let parsed;
   try {
-    parsed = JSON.parse(body);
+    parsed = parseStrictJson(body, { label: 'skill model answer' });
   } catch {
-    throw ordinaryError('SKILL_OUTPUT_INVALID', 'the provider response is not JSON');
+    // The strict parser rejects duplicate keys, trailing content, invalid
+    // escapes and over-deep nesting; the raw body never enters the diagnostic.
+    throw ordinaryError('SKILL_OUTPUT_INVALID', 'the provider response is not strict JSON');
   }
   if (Array.isArray(parsed) || !isPlainObject(parsed)) {
     throw ordinaryError('SKILL_OUTPUT_INVALID', 'the provider response is not a JSON object');

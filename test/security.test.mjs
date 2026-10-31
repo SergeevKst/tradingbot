@@ -538,6 +538,7 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/ai/skills/execution-plan.mjs',
     'src/ai/skills/migration.mjs',
     'src/ai/skills/package-store.mjs',
+    'src/ai/skills/production.mjs',
     'src/ai/skills/renderer.mjs',
     'src/ai/skills/resolver.mjs',
     'src/ai/skills/runtime-policy.mjs',
