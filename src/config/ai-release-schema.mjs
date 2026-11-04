@@ -429,6 +429,142 @@ export function createBinding(input) {
 }
 
 /**
+ * Closed field list of the v2 joint binding (architecture v1.1 §7.1).
+ *
+ * The five v1 fields are retained as manifest/profile lineage so an old reader
+ * can still distinguish an artifact set; the four v2 fields commit the model
+ * registry, the skill registry, the prepared execution plan and the effective
+ * runtime policy.
+ */
+export const BINDING_V2_FIELDS = Object.freeze([
+  'schemaVersion',
+  'manifestVersion',
+  'manifestSha256',
+  'capabilityProfileSha256',
+  'inventorySha256',
+  'artifactSetSha256',
+  'modelRegistrySha256',
+  'skillRegistrySha256',
+  'executionPlanSha256',
+  'runtimePolicySha256',
+  'bindingSha256',
+]);
+
+/** The binding body excludes its own digest. */
+export const BINDING_V2_BODY_FIELDS = Object.freeze(BINDING_V2_FIELDS.filter((field) => field !== 'bindingSha256'));
+
+/**
+ * @param {unknown} raw
+ * @param {string} [label]
+ * @returns {Readonly<object>} the validated body without `bindingSha256`
+ */
+export function validateBindingV2Body(raw, label = 'binding') {
+  const input = assertClosedObject(raw, BINDING_V2_BODY_FIELDS, BINDING_V2_BODY_FIELDS, label);
+  if (input.schemaVersion !== 2) {
+    throw new ConfigError(`${label} schemaVersion must be exactly 2`, { field: `${label}.schemaVersion` });
+  }
+  return Object.freeze({
+    schemaVersion: 2,
+    manifestVersion: assertIdentifier(input.manifestVersion, `${label}.manifestVersion`),
+    manifestSha256: assertDigest(input.manifestSha256, `${label}.manifestSha256`),
+    capabilityProfileSha256: assertDigest(input.capabilityProfileSha256, `${label}.capabilityProfileSha256`),
+    inventorySha256: assertDigest(input.inventorySha256, `${label}.inventorySha256`),
+    artifactSetSha256: assertDigest(input.artifactSetSha256, `${label}.artifactSetSha256`),
+    modelRegistrySha256: assertDigest(input.modelRegistrySha256, `${label}.modelRegistrySha256`),
+    skillRegistrySha256: assertDigest(input.skillRegistrySha256, `${label}.skillRegistrySha256`),
+    executionPlanSha256: assertDigest(input.executionPlanSha256, `${label}.executionPlanSha256`),
+    runtimePolicySha256: assertDigest(input.runtimePolicySha256, `${label}.runtimePolicySha256`),
+  });
+}
+
+/**
+ * @param {unknown} body
+ * @returns {string}
+ */
+export function computeBindingV2Sha256(body) {
+  return digestJson(validateBindingV2Body(body), { label: 'binding v2 body' });
+}
+
+/**
+ * Validate a v2 binding and recompute its digest. A binding whose digest does
+ * not cover its own body is rejected, so "append a skill name" style shortcuts
+ * cannot pass release review.
+ *
+ * @param {unknown} raw
+ * @param {string} [label]
+ * @returns {Readonly<object>}
+ */
+export function validateBindingV2(raw, label = 'binding') {
+  const input = assertClosedObject(raw, BINDING_V2_FIELDS, BINDING_V2_FIELDS, label);
+  const body = validateBindingV2Body(
+    Object.fromEntries(BINDING_V2_BODY_FIELDS.map((field) => [field, input[field]])),
+    label,
+  );
+  const digest = assertDigest(input.bindingSha256, `${label}.bindingSha256`);
+  if (computeBindingV2Sha256(body) !== digest) {
+    throw new ConfigError(`${label}.bindingSha256 does not hash its own body`, { field: `${label}.bindingSha256` });
+  }
+  return Object.freeze({ ...body, bindingSha256: digest });
+}
+
+/**
+ * Build a v2 binding from verified components.
+ *
+ * @param {{
+ *   manifest: any, manifestSha256: string, profileSha256: string,
+ *   inventory: unknown, artifacts: unknown, observers: unknown,
+ *   modelRegistrySha256: string, skillRegistrySha256: string,
+ *   executionPlanSha256: string, runtimePolicySha256: string,
+ * }} input
+ * @returns {Readonly<object>}
+ */
+export function createBindingV2(input) {
+  const manifest = /** @type {any} */ (input.manifest);
+  const body = validateBindingV2Body({
+    schemaVersion: 2,
+    manifestVersion: assertIdentifier(manifest.manifestVersion, 'manifest.manifestVersion'),
+    manifestSha256: assertDigest(input.manifestSha256, 'manifest.manifestSha256'),
+    capabilityProfileSha256: assertDigest(input.profileSha256, 'profile.capabilityProfileSha256'),
+    inventorySha256: computeInventoryDigest(input.inventory),
+    artifactSetSha256: computeArtifactSetDigest({
+      artifacts: input.artifacts,
+      observers: input.observers,
+      inventory: input.inventory,
+    }),
+    modelRegistrySha256: assertDigest(input.modelRegistrySha256, 'modelRegistrySha256'),
+    skillRegistrySha256: assertDigest(input.skillRegistrySha256, 'skillRegistrySha256'),
+    executionPlanSha256: assertDigest(input.executionPlanSha256, 'executionPlanSha256'),
+    runtimePolicySha256: assertDigest(input.runtimePolicySha256, 'runtimePolicySha256'),
+  });
+  return Object.freeze({ ...body, bindingSha256: computeBindingV2Sha256(body) });
+}
+
+/**
+ * Fields two bindings must agree on to be the same identity. v1 and v2 bindings
+ * are never equal: mixing them across a generation is exactly the bug this
+ * prevents.
+ *
+ * @param {unknown} binding
+ * @returns {readonly string[]}
+ */
+export function bindingComparisonFields(binding) {
+  const value = /** @type {any} */ (binding);
+  if (value !== null && typeof value === 'object' && value.schemaVersion === 2) {
+    return BINDING_V2_FIELDS;
+  }
+  return Object.freeze(['manifestVersion', 'manifestSha256', 'capabilityProfileSha256', 'inventorySha256', 'artifactSetSha256']);
+}
+
+/**
+ * @param {unknown} binding
+ * @returns {2 | 1}
+ */
+export function bindingSchemaVersion(binding) {
+  const value = /** @type {any} */ (binding);
+  return value !== null && typeof value === 'object' && value.schemaVersion === 2 ? 2 : 1;
+}
+
+/**
  * @param {unknown} raw
  * @param {string} [label]
  * @returns {Readonly<{ slot: string, instanceId: string, artifactSha256: string }>}
@@ -685,9 +821,13 @@ export const CONTROL_RECORD_FIELDS = Object.freeze([
 export function validateControlRecord(raw, options = {}) {
   const label = options.label ?? 'control record';
   const input = assertClosedObject(raw, CONTROL_RECORD_FIELDS, CONTROL_RECORD_FIELDS, label);
-  if (input.schemaVersion !== 1) {
-    throw new ConfigError(`${label} schemaVersion must be exactly 1`, { field: `${label}.schemaVersion` });
+  const schemaVersion = input.schemaVersion;
+  if (schemaVersion !== 1 && schemaVersion !== 2) {
+    throw new ConfigError(`${label} schemaVersion must be 1 or 2`, { field: `${label}.schemaVersion` });
   }
+  // Dual readers discriminate the version explicitly and never drop unknown
+  // fields: a v2 record carries the joint skill/model binding.
+  const validateBindingFor = schemaVersion === 2 ? validateBindingV2 : validateBinding;
   const deploymentId = assertUuid(input.deploymentId, `${label}.deploymentId`);
   const revision = assertNonNegativeInteger(input.revision, `${label}.revision`);
   const generation = assertNonNegativeInteger(input.generation, `${label}.generation`);
@@ -701,8 +841,8 @@ export function validateControlRecord(raw, options = {}) {
     ? null
     : assertPositiveInteger(input.nextGeneration, `${label}.nextGeneration`);
   const phase = assertEnum(input.phase, PHASES, `${label}.phase`);
-  const active = input.active === null ? null : validateBinding(input.active, `${label}.active`);
-  const target = input.target === null ? null : validateBinding(input.target, `${label}.target`);
+  const active = input.active === null ? null : validateBindingFor(input.active, `${label}.active`);
+  const target = input.target === null ? null : validateBindingFor(input.target, `${label}.target`);
   const transitionId = input.transitionId === null ? null : assertUuid(input.transitionId, `${label}.transitionId`);
   const inventory = validateInventory(input.inventory);
   const members = validateMembers(input.members, `${label}.members`);
@@ -781,7 +921,7 @@ export function validateControlRecord(raw, options = {}) {
   // newly added or differently named target slot.
 
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: schemaVersion === 2 ? 2 : 1,
     deploymentId,
     revision,
     generation,
@@ -797,6 +937,23 @@ export function validateControlRecord(raw, options = {}) {
     releaseDescriptorSha256,
     transition,
   });
+}
+
+/**
+ * Validate a control record and require the v2 schema. Used by the offline
+ * migration path so a v1 record can never be silently treated as converted.
+ *
+ * @param {unknown} raw
+ * @param {{ label?: string }} [options]
+ * @returns {Readonly<object>}
+ */
+export function validateControlRecordV2(raw, options = {}) {
+  const label = options.label ?? 'control record';
+  const record = validateControlRecord(raw, { label });
+  if (record.schemaVersion !== 2) {
+    throw new ConfigError(`${label} must use schemaVersion 2 after migration`, { field: `${label}.schemaVersion` });
+  }
+  return record;
 }
 
 /** Closed field list for an acknowledgement. */
@@ -927,19 +1084,59 @@ export const RELEASE_DESCRIPTOR_FIELDS = Object.freeze([
 ]);
 
 /**
+ * Additional closed fields of a v2 release descriptor: the six package approval
+ * references and the plan approval. They are part of the descriptor digest, so
+ * an approval cannot be swapped after the fact.
+ */
+export const RELEASE_DESCRIPTOR_FIELDS_V2 = Object.freeze([
+  ...RELEASE_DESCRIPTOR_FIELDS,
+  'skillApprovalRefs',
+  'planApprovalRef',
+]);
+
+const SKILL_APPROVAL_REF_FIELDS = Object.freeze(['packageDigestSha256', 'attestationSha256']);
+
+/**
+ * @param {unknown} raw
+ * @param {string} label
+ * @returns {Readonly<Record<string, Readonly<{ packageDigestSha256: string, attestationSha256: string }>>>}
+ */
+export function validateSkillApprovalRefs(raw, label = 'skillApprovalRefs') {
+  const input = assertClosedObject(raw, [...AI_OPERATIONS], [...AI_OPERATIONS], label);
+  /** @type {Record<string, unknown>} */
+  const out = {};
+  for (const operation of AI_OPERATIONS) {
+    const at = `${label}.${operation}`;
+    const entry = assertClosedObject(input[operation], SKILL_APPROVAL_REF_FIELDS, SKILL_APPROVAL_REF_FIELDS, at);
+    out[operation] = Object.freeze({
+      packageDigestSha256: assertDigest(entry.packageDigestSha256, `${at}.packageDigestSha256`),
+      attestationSha256: assertDigest(entry.attestationSha256, `${at}.attestationSha256`),
+    });
+  }
+  return Object.freeze(out);
+}
+
+/**
  * @param {unknown} raw
  * @param {{ label?: string }} [options]
  * @returns {Readonly<object>}
  */
 export function validateReleaseDescriptor(raw, options = {}) {
   const label = options.label ?? 'release descriptor';
-  const input = assertClosedObject(raw, RELEASE_DESCRIPTOR_FIELDS, RELEASE_DESCRIPTOR_FIELDS, label);
-  if (input.schemaVersion !== 1) {
-    throw new ConfigError(`${label} schemaVersion must be exactly 1`, { field: `${label}.schemaVersion` });
+  if (!isPlainObject(raw)) {
+    throw new ConfigError(`${label} must be an object`, { field: label });
   }
+  const schemaVersion = /** @type {any} */ (raw).schemaVersion;
+  if (schemaVersion !== 1 && schemaVersion !== 2) {
+    throw new ConfigError(`${label} schemaVersion must be 1 or 2`, { field: `${label}.schemaVersion` });
+  }
+  const fields = schemaVersion === 2 ? RELEASE_DESCRIPTOR_FIELDS_V2 : RELEASE_DESCRIPTOR_FIELDS;
+  const input = assertClosedObject(raw, fields, fields, label);
   const inventory = validateInventory(input.inventory);
   const artifactSet = validateArtifactSet(input.artifacts, input.observers, inventory);
-  const binding = validateBinding(input.binding, `${label}.binding`);
+  const binding = schemaVersion === 2
+    ? validateBindingV2(input.binding, `${label}.binding`)
+    : validateBinding(input.binding, `${label}.binding`);
   if (binding.inventorySha256 !== computeInventoryDigest(inventory)) {
     throw new ConfigError(`${label} binding inventory digest does not match its inventory`, {
       field: `${label}.binding.inventorySha256`,
@@ -954,12 +1151,18 @@ export function validateReleaseDescriptor(raw, options = {}) {
     });
   }
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: schemaVersion === 2 ? 2 : 1,
     binding,
     inventory,
     artifacts: artifactSet.artifacts,
     observers: artifactSet.observers,
     approvalId: assertIdentifier(input.approvalId, `${label}.approvalId`),
+    ...(schemaVersion === 2
+      ? {
+          skillApprovalRefs: validateSkillApprovalRefs(input.skillApprovalRefs, `${label}.skillApprovalRefs`),
+          planApprovalRef: assertDigest(input.planApprovalRef, `${label}.planApprovalRef`),
+        }
+      : {}),
   });
 }
 

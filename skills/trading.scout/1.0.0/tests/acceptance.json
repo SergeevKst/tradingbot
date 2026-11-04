@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "valid-one-idea",
+      "fixture": "examples/single-symbol.json",
+      "stage": "output",
+      "response": {
+        "ideas": [
+          {
+            "symbol": "BTCUSDT",
+            "side": "LONG",
+            "entry": 102,
+            "stopLoss": 99,
+            "takeProfit": 107,
+            "rationale": "Trend continuation above the 1h swing low."
+          }
+        ]
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "valid-empty",
+      "fixture": "examples/single-symbol.json",
+      "stage": "output",
+      "response": {
+        "ideas": []
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "reject-quantity",
+      "fixture": "examples/single-symbol.json",
+      "stage": "output",
+      "response": {
+        "ideas": [
+          {
+            "symbol": "BTCUSDT",
+            "side": "LONG",
+            "entry": 102,
+            "stopLoss": 99,
+            "takeProfit": 107,
+            "rationale": "Trend continuation above the 1h swing low.",
+            "quantity": 3
+          }
+        ]
+      },
+      "expected": "SKILL_OUTPUT_INVALID"
+    },
+    {
+      "id": "reject-unknown-symbol-input",
+      "fixture": "examples/single-symbol.json",
+      "stage": "input",
+      "replace": {
+        "pointer": "/symbols/0/lastPrice",
+        "value": -1
+      },
+      "expected": "SKILL_INPUT_INVALID"
+    }
+  ]
+}

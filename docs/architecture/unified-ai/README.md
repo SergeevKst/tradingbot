@@ -35,8 +35,10 @@ Deterministic protection (trailing stops, harvest, time-stop, the operator's
 `/orders` close) never touches it and keeps running in every phase.
 
 Legacy behaviour is the default. With `AI_RUNTIME_MODE` unset or `legacy`, no new
-code path executes: `loadAIRuntimeConfig` returns `{mode:'legacy'}` before
-touching any other variable, `bot.mjs` keeps its previous `createDeepSeekChat`
+code path executes: `loadAIRuntimeConfig` returns `{mode:'legacy'}` without
+reading any identity or credential variable (the only value it inspects is a
+reviewed `AI_SKILL_MODE`, and a request for `v2` there is refused rather than
+silently downgraded), `bot.mjs` keeps its previous `createDeepSeekChat`
 lazily, and `src/index.mjs` still makes no provider call.
 
 ## Supported topology (a constraint, not a verified fact)

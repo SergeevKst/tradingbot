@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ideas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "LONG",
+              "SHORT"
+            ]
+          },
+          "entry": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "stopLoss": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "takeProfit": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 600
+          }
+        },
+        "required": [
+          "symbol",
+          "side",
+          "entry",
+          "stopLoss",
+          "takeProfit",
+          "rationale"
+        ]
+      },
+      "maxItems": 15
+    }
+  },
+  "required": [
+    "ideas"
+  ]
+}

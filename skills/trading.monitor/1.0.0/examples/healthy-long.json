@@ -1,0 +1,65 @@
+{
+  "input": {
+    "news": "No material headlines.",
+    "position": {
+      "symbol": "BTCUSDT",
+      "side": "LONG",
+      "avgPrice": 100,
+      "markPrice": 102,
+      "stopLoss": 97,
+      "takeProfit": 110,
+      "unrealisedPnl": 4,
+      "leverage": 3,
+      "kind": "limit"
+    },
+    "market": {
+      "symbol": "BTCUSDT",
+      "lastPrice": 102,
+      "bid": 101.9,
+      "ask": 102.1,
+      "high24h": 110,
+      "low24h": 95,
+      "avgRange14h": 1,
+      "candles": [
+        {
+          "o": 100,
+          "h": 102,
+          "l": 99,
+          "c": 101,
+          "v": 10
+        },
+        {
+          "o": 101,
+          "h": 103,
+          "l": 100,
+          "c": 102,
+          "v": 12
+        },
+        {
+          "o": 102,
+          "h": 104,
+          "l": 101,
+          "c": 103,
+          "v": 9
+        }
+      ],
+      "atr14h": 1.2,
+      "trend": {
+        "ema21h": 101,
+        "change4hPct": 0.5,
+        "bias": "up"
+      }
+    },
+    "btc": {
+      "lastPrice": 102,
+      "ema21h": 101,
+      "change4hPct": 0.5,
+      "bias": "up"
+    }
+  },
+  "expectedOutput": {
+    "action": "HOLD",
+    "reason": "Trend bias remains aligned with the position.",
+    "confidence": 0.6
+  }
+}

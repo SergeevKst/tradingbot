@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "lesson": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "proposedRule": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "matchedExistingRule": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "lesson",
+    "proposedRule",
+    "severity",
+    "matchedExistingRule"
+  ]
+}

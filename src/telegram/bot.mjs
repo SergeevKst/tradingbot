@@ -178,6 +178,22 @@ export function contextForIdea(context, symbol) {
   return { symbol: snap, btc: context.btc ?? null };
 }
 
+/**
+ * True for the typed structural refusal envelope every Skill-aware operation
+ * boundary returns when a required package/plan fault is detected.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function isPausedResult(value) {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    /** @type {any} */ (value).ok === false &&
+    /** @type {any} */ (value).code === 'ACTIVATION_PAUSED'
+  );
+}
+
 /** Escape a string for Telegram HTML parse_mode. */
 function escapeHtml(s) {
   return String(s)
@@ -448,6 +464,10 @@ async function main() {
       // 2. Scout (deepseek-chat).
       const api = getChat();
       const scout = await api.generateIdeas(context);
+      if (isPausedResult(scout)) {
+        await ctx.reply(`⏸ AI-операции приостановлены: \`${scout.cause}\`. Скаут не выполнен.`);
+        return;
+      }
       log.scout('scout response', { symbolsSeen: context.symbols.length, ok: scout.parsed.ok, ideaCount: scout.parsed.ideas?.length ?? 0, issues: scout.parsed.issues ?? [], raw: scout.raw });
 
       if (!scout.parsed.ok) {
@@ -487,21 +507,38 @@ async function main() {
           // context, so the guard weighs crowd positioning and liquidity, not just
           // the numeric rules.
           let sentimentText = null;
+          let sentimentData = null;
           try {
             const sent = await fetchMarketSentiment(idea.symbol);
             if (fng && Number.isFinite(fng.value)) {
               sent.fearGreed = fng.value;
               sent.fearGreedClass = fng.classification ?? null;
             }
+            sentimentData = sent;
             sentimentText = formatSentiment(sent);
           } catch {
             sentimentText = null;
+            sentimentData = null;
           }
-          const guard = await api.filterIdea(idea, contextForIdea(context, idea.symbol), { sentiment: sentimentText, news: context.news ?? null });
+          const guard = await api.filterIdea(idea, contextForIdea(context, idea.symbol), {
+            sentiment: sentimentText,
+            sentimentData,
+            snapshot: context.symbols.find((entry) => entry.symbol === idea.symbol) ?? null,
+            news: context.news ?? null,
+          });
+          if (isPausedResult(guard)) {
+            return { idea, guard: null, paused: guard, precheckReasons: ['ACTIVATION_PAUSED'] };
+          }
           log.guard('guard verdict', { symbol: idea.symbol, side: idea.side, verdict: guard.parsed.ok ? guard.parsed.value.verdict : 'PARSE_ERROR', reasons: guard.parsed.ok ? guard.parsed.value.reasons : guard.parsed.issues, raw: guard.raw });
           return { idea, guard, precheckReasons: null };
         }),
       );
+      const pausedGuard = guardResults.find((entry) => entry.paused !== undefined);
+      if (pausedGuard) {
+        log.guard('scan paused', { cause: pausedGuard.paused.cause });
+        await ctx.reply(`⏸ AI-операции приостановлены: \`${pausedGuard.paused.cause}\`. Гвард не выполнен.`);
+        return;
+      }
       for (const { idea, guard, precheckReasons } of guardResults) {
         if (guard === null) {
           rejected.push({ idea, reasons: precheckReasons });
@@ -1227,7 +1264,11 @@ async function main() {
         mfeUsd,
       };
       const refl = await getReflector().reflect(input);
-      if (refl) {
+      if (refl && isPausedResult(refl)) {
+        log.guard('reflection paused', { symbol: closed.symbol, cause: refl.cause });
+      } else if (refl && refl.ok === false) {
+        log.guard('reflection unavailable', { symbol: closed.symbol, code: refl.code });
+      } else if (refl) {
         if (refl.matchedExistingRule === true && refl.proposedRule === '') {
           log.guard('reflection skipped (duplicate)', { symbol: closed.symbol, side: closed.side, lesson: refl.lesson });
         } else {
@@ -1242,9 +1283,36 @@ async function main() {
   }
 
   // Reusable low-level completion for the monitor, using the guard model.
-  async function monitorComplete(prompt) {
-    const content = await getChat()._completeGuard(prompt, { operation: 'MONITOR' });
+  //
+  // In the v2 dispatch mode the trusted caller supplies the typed host contract
+  // and the packaged skill renders the model input; the legacy prompt is built
+  // lazily and only for the explicitly authorized compatibility mode.
+  async function monitorComplete(input, makePrompt) {
+    const chat = getChat();
+    if (chat.operationMode === 'v2') {
+      const result = await chat.monitor(input);
+      if (isPausedResult(result)) {
+        return { refused: result, parsed: { ok: false, issues: [result.cause] }, raw: '' };
+      }
+      return { parsed: result.parsed, raw: result.raw ?? '' };
+    }
+    const content = await chat._completeGuard(makePrompt(), { operation: 'MONITOR' });
     const parsed = parseMonitorResponse(content);
+    return { parsed, raw: content };
+  }
+
+  // Same seam for the stop-check operation.
+  async function stopcheckComplete(input, makePrompt) {
+    const chat = getChat();
+    if (chat.operationMode === 'v2') {
+      const result = await chat.stopcheck(input);
+      if (isPausedResult(result)) {
+        return { refused: result, parsed: { ok: false, issues: [result.cause] }, raw: '' };
+      }
+      return { parsed: result.parsed, raw: result.raw ?? '' };
+    }
+    const content = await chat._completeGuard(makePrompt(), { operation: 'STOPCHECK' });
+    const parsed = parseStopcheckResponse(content);
     return { parsed, raw: content };
   }
 
@@ -1489,12 +1557,40 @@ async function main() {
           btc,
           candles: compact,
         };
-        const prompt = buildMonitorPrompt({ position: { ...pos, markPrice, avgPrice }, market, newsText });
+        const summary = summarizeCandles(compact);
+        const monitorInput = {
+          news: newsText || null,
+          position: {
+            symbol: pos.symbol,
+            side: pos.side,
+            avgPrice,
+            markPrice,
+            stopLoss: pos.stopLoss ?? null,
+            takeProfit: pos.takeProfit ?? null,
+            unrealisedPnl: Number(pos.unrealisedPnl) || 0,
+            leverage: Number(pos.leverage) || 0,
+            kind: pos.kind,
+          },
+          market: {
+            symbol: pos.symbol,
+            lastPrice: live.lastPrice,
+            bid: live.bid ?? null,
+            ask: live.ask ?? null,
+            high24h: summary.high24h ?? null,
+            low24h: summary.low24h ?? null,
+            avgRange14h: summary.avgRange14h ?? null,
+            candles: compact,
+            atr14h: Number.isFinite(atr) ? atr : null,
+            trend,
+          },
+          btc,
+        };
+        const makePrompt = () => buildMonitorPrompt({ position: { ...pos, markPrice, avgPrice }, market, newsText });
         // The review and the exit proposal it produces live in one counted scope:
         // an EXIT proposal carries the generation that issued it as a pending
         // effect sidecar, so its close button cannot fire under another one.
         const review = await aiEffects.workflow('MONITOR', async (work) => {
-          const outcome = await monitorComplete(prompt);
+          const outcome = await monitorComplete(monitorInput, makePrompt);
           if (outcome.parsed.ok && outcome.parsed.value.action === 'EXIT' && notifyChatId) {
             const pid = `exit-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             exitProposals.set(pid, { symbol: pos.symbol, side: pos.side, kind: pos.kind, reason: outcome.parsed.value.reason, aiDerived: work !== null });
@@ -1505,6 +1601,10 @@ async function main() {
           }
           return outcome;
         });
+        if (review.refused) {
+          log.guard('monitor paused', { symbol: pos.symbol, cause: review.refused.cause });
+          continue;
+        }
         if (!review.parsed.ok) {
           log.guard('monitor parse error', { symbol: pos.symbol, issues: review.parsed.issues });
           continue;
@@ -1606,6 +1706,10 @@ async function main() {
       // 2. scout ideas.
       const api = getChat();
       const scout = await api.generateIdeas(context);
+      if (isPausedResult(scout)) {
+        if (report) await notifyUser(`⏸ AI приостановлен (${scout.cause}) — авто-скан не выполнялся.`);
+        return;
+      }
       ideaCount = scout.parsed.ok && Array.isArray(scout.parsed.ideas) ? scout.parsed.ideas.length : 0;
       if (!scout.parsed.ok || ideaCount === 0) {
         if (report) await notifyUser(`🔍 Авто-скан: проверено монет ${context.symbols.length}, скаут дал 0 идей — входа нет.`);
@@ -1624,15 +1728,27 @@ async function main() {
             return;
           }
           let sentimentText = null;
+          let sentimentData = null;
           try {
             const sent = await fetchMarketSentiment(idea.symbol);
             if (fng && Number.isFinite(fng.value)) {
               sent.fearGreed = fng.value;
               sent.fearGreedClass = fng.classification ?? null;
             }
+            sentimentData = sent;
             sentimentText = formatSentiment(sent);
           } catch { }
-          const guard = await api.filterIdea(idea, contextForIdea(context, idea.symbol), { sentiment: sentimentText, news: context.news ?? null });
+          const guard = await api.filterIdea(idea, contextForIdea(context, idea.symbol), {
+            sentiment: sentimentText,
+            sentimentData,
+            snapshot: context.symbols.find((entry) => entry.symbol === idea.symbol) ?? null,
+            news: context.news ?? null,
+          });
+          if (isPausedResult(guard)) {
+            log.guard('autotrade scan paused', { cause: guard.cause });
+            rejectedCount.push(`${idea.symbol} ${idea.side} (AI paused: ${guard.cause})`);
+            return;
+          }
           if (guard.parsed.ok && guard.parsed.value.verdict === 'APPROVED') {
             const conf = guard.parsed.value.confidence;
             if (conf >= AUTO_CONFIDENCE) {
@@ -1970,14 +2086,47 @@ async function main() {
           btc,
           candles: item.compact,
         };
-        const prompt = buildStopcheckPrompt({ position: pos, market, newsText });
+        const summary = summarizeCandles(item.compact);
+        const stopcheckInput = {
+          news: newsText || null,
+          position: {
+            symbol: pos.symbol,
+            side: pos.side,
+            avgPrice: pos.avgPrice,
+            markPrice: pos.markPrice,
+            stopLoss: pos.stopLoss ?? null,
+            takeProfit: pos.takeProfit ?? null,
+            unrealisedPnl: Number(pos.unrealisedPnl) || 0,
+            leverage: Number(pos.leverage) || 0,
+            kind: pos.kind,
+          },
+          market: {
+            symbol: pos.symbol,
+            lastPrice: pos.markPrice,
+            bid: null,
+            ask: null,
+            high24h: summary.high24h ?? null,
+            low24h: summary.low24h ?? null,
+            avgRange14h: summary.avgRange14h ?? null,
+            candles: item.compact,
+            atr14h: Number.isFinite(atr) ? atr : null,
+            trend: computeBtcBlock(item.compact),
+          },
+          btc,
+        };
+        const makePrompt = () => buildStopcheckPrompt({ position: pos, market, newsText });
         // The verdict and every effect derived from it run inside one counted
         // scope: the close dispatch is checked against the control record
         // immediately before it runs, and a QUIESCED acknowledgement is
         // impossible while the close is in flight.
         await aiEffects.workflow('STOPCHECK', async (work) => {
-          const content = await getChat()._completeGuard(prompt, { operation: 'STOPCHECK' });
-          const parsed = parseStopcheckResponse(content);
+          const outcome = await stopcheckComplete(stopcheckInput, makePrompt);
+          if (outcome.refused) {
+            log.guard('stopcheck paused', { symbol: pos.symbol, cause: outcome.refused.cause });
+            results.push({ pos, action: 'PAUSED', reason: outcome.refused.cause });
+            return;
+          }
+          const parsed = outcome.parsed;
           if (!parsed.ok) {
             log.guard('stopcheck parse error', { symbol: pos.symbol, issues: parsed.issues });
             results.push({ pos, action: 'PARSE_ERROR', reason: parsed.issues.join('; ') });

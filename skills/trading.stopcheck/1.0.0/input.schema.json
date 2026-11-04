@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "news": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 8192
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "LONG",
+            "SHORT"
+          ]
+        },
+        "avgPrice": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "markPrice": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "stopLoss": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "takeProfit": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unrealisedPnl": {
+          "type": "number"
+        },
+        "leverage": {
+          "type": "number",
+          "minimum": 0
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        }
+      },
+      "required": [
+        "symbol",
+        "side",
+        "avgPrice",
+        "markPrice",
+        "stopLoss",
+        "takeProfit",
+        "unrealisedPnl",
+        "leverage",
+        "kind"
+      ]
+    },
+    "market": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "lastPrice": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bid": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ask": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "high24h": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "low24h": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "avgRange14h": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "o": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "h": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "l": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "c": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "v": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "o",
+              "h",
+              "l",
+              "c",
+              "v"
+            ]
+          },
+          "maxItems": 30
+        },
+        "atr14h": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trend": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ema21h": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "change4hPct": {
+              "type": "number"
+            },
+            "bias": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down",
+                "flat"
+              ]
+            }
+          },
+          "required": [
+            "ema21h",
+            "change4hPct",
+            "bias"
+          ]
+        }
+      },
+      "required": [
+        "symbol",
+        "lastPrice",
+        "bid",
+        "ask",
+        "high24h",
+        "low24h",
+        "avgRange14h",
+        "candles",
+        "atr14h",
+        "trend"
+      ]
+    },
+    "btc": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "lastPrice": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "ema21h": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "change4hPct": {
+              "type": "number"
+            },
+            "bias": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down",
+                "flat"
+              ]
+            }
+          },
+          "required": [
+            "lastPrice",
+            "ema21h",
+            "change4hPct",
+            "bias"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "news",
+    "position",
+    "market",
+    "btc"
+  ]
+}

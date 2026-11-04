@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "userParts": [
+    {
+      "label": "SHARED CONTEXT",
+      "valuePointer": "/btc"
+    },
+    {
+      "label": "NEWS",
+      "valuePointer": "/news"
+    },
+    {
+      "label": "IDEA",
+      "valuePointer": "/idea"
+    },
+    {
+      "label": "MARKET",
+      "valuePointer": "/market"
+    },
+    {
+      "label": "SENTIMENT",
+      "valuePointer": "/sentiment"
+    }
+  ]
+}

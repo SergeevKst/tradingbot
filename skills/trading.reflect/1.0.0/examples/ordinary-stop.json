@@ -1,0 +1,22 @@
+{
+  "input": {
+    "trade": {
+      "symbol": "BTCUSDT",
+      "side": "LONG",
+      "entry": 100,
+      "exit": 99,
+      "pnlUsd": -1.1,
+      "reason": "Protective stop",
+      "exitCause": "stop",
+      "holdMinutes": 10,
+      "mfeUsd": 0
+    },
+    "existingRules": null
+  },
+  "expectedOutput": {
+    "lesson": "The protective stop closed the trade.",
+    "proposedRule": "",
+    "severity": "low",
+    "matchedExistingRule": false
+  }
+}

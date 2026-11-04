@@ -13,9 +13,11 @@ release.
 | `SCOUT_PROVIDER`, `GUARD_PROVIDER` | removed; must be unset |
 | `SCOUT_BASE_URL`, `GUARD_BASE_URL` | removed; must be unset |
 | `SCOUT_MODEL`, `GUARD_MODEL` | removed; must be unset |
-| `SCOUT_API_KEY`, `GUARD_API_KEY`, `KIMI_API_KEY` | removed; must be unset (single key only) |
+| `SCOUT_API_KEY`, `GUARD_API_KEY` | removed; must be unset (role aliases are never a provider credential) |
+| `KIMI_API_KEY` | **credential**, not an identity: kept with `AI_SKILL_MODE=v2` as the Kimi provider secret; must be unset under `AI_SKILL_MODE=legacy`, where it selects the Kimi REFLECT endpoint |
 | `SCOUT_REASONING_EFFORT`, `GUARD_REASONING_EFFORT` | removed; per-operation settings live in the capability profile |
-| `DEEPSEEK_API_KEY` / `AI_API_KEY` | kept as the local secret; never in the manifest |
+| `DEEPSEEK_API_KEY` / `AI_API_KEY` | kept as the DeepSeek local secret; never in the manifest |
+| `OPENROUTER_API_KEY` | kept as the OpenRouter local secret in v2; never in the manifest |
 | — | `AI_RUNTIME_MODE=single` |
 | — | `AI_CONTROL_DIR=<absolute path>` |
 | — | `AI_DEPLOYMENT_ID=<uuid from initialize>` |
@@ -25,10 +27,14 @@ release.
 
 A non-empty legacy identity variable is a hard error in single mode **even when
 it holds the value the manifest already says**: two equal-looking authorities
-drift independently, and the protocol only accepts one.
+drift independently, and the protocol only accepts one. The one variable whose
+meaning depends on `AI_SKILL_MODE` is `KIMI_API_KEY`: it is a provider
+credential in `v2` (the provider identity then comes from the bound model
+registry) and an identity authority in `legacy`.
 
 Secrets are never written to the manifest, an acknowledgement, a receipt, the
-release audit or a report. `describeAIRuntimeConfig()` reports `hasApiKey` only.
+release audit or a report. `describeAIRuntimeConfig()` reports `hasApiKey` and
+the provider ids that hold a credential (`credentialProviders`), never a value.
 
 ## Process inventory
 

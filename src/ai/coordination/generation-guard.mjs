@@ -24,6 +24,8 @@ import {
   ACK_STATUS,
   OBSERVER_STATUS,
   PHASE,
+  bindingComparisonFields,
+  bindingSchemaVersion,
   validateObserverReceipt,
 } from '../../config/ai-release-schema.mjs';
 import {
@@ -43,19 +45,26 @@ function fail(code, message, details) {
 }
 
 /**
+ * Binding equality (architecture v1.1 §7.1).
+ *
+ * v1 and v2 bindings are never equal: a v2 binding covers the joint
+ * skill/model/plan/policy identity and mixing schema versions across one
+ * generation is a fencing failure, not a compatibility convenience.
+ *
  * @param {unknown} a
  * @param {unknown} b
  * @returns {boolean}
  */
 function bindingEqual(a, b) {
   if (!a || !b) return false;
-  return (
-    a.manifestVersion === b.manifestVersion &&
-    a.manifestSha256 === b.manifestSha256 &&
-    a.capabilityProfileSha256 === b.capabilityProfileSha256 &&
-    a.inventorySha256 === b.inventorySha256 &&
-    a.artifactSetSha256 === b.artifactSetSha256
-  );
+  if (bindingSchemaVersion(a) !== bindingSchemaVersion(b)) return false;
+  const fields = bindingComparisonFields(a);
+  const otherFields = bindingComparisonFields(b);
+  if (fields.length !== otherFields.length) return false;
+  for (const field of fields) {
+    if (/** @type {any} */ (a)[field] !== /** @type {any} */ (b)[field]) return false;
+  }
+  return true;
 }
 
 /**

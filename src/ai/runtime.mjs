@@ -72,6 +72,10 @@ export function createGenerationRuntime(options) {
         profile: options.profile,
         binding: options.binding,
         generation: options.generation,
+        // The counted whole-work token is passed through so an operation
+        // boundary can correlate its own workflow scope (and any structural
+        // refusal) with the guard accounting that fences effects.
+        workToken: token,
       });
       // A retired generation must not hand a usable result to a caller: the
       // response is discarded, not returned with a warning.

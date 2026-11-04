@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "valid-hold",
+      "fixture": "examples/healthy-long.json",
+      "stage": "output",
+      "response": {
+        "action": "HOLD",
+        "reason": "Trend bias remains aligned with the position.",
+        "confidence": 0.6
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "reject-price-field",
+      "fixture": "examples/healthy-long.json",
+      "stage": "output",
+      "response": {
+        "action": "EXIT",
+        "reason": "thesis broken",
+        "confidence": 0.7,
+        "newStop": 99
+      },
+      "expected": "SKILL_OUTPUT_INVALID"
+    }
+  ]
+}

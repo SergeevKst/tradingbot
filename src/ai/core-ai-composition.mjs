@@ -14,7 +14,7 @@
  * @module ai/core-ai-composition
  */
 import { randomUUID } from 'node:crypto';
-import { AI_STATUS, createAIAnalysisOutcome } from './interface.mjs';
+import { AI_STATUS, AI_ANALYSIS_SCHEMA_VERSION, createAIAnalysisOutcome } from './interface.mjs';
 import { PROMPT_VERSION } from './prompts.mjs';
 import { getOperationSettings } from './operation-profiles.mjs';
 import { createGenerationRuntime } from './runtime.mjs';
@@ -24,11 +24,24 @@ import {
   validateObserverIdentity,
 } from './coordination/generation-guard.mjs';
 import { COORDINATION_ERROR_CODE, CoordinationError } from '../errors/coordination-error.mjs';
+import { ACTIVATION_PAUSED, isStructuralCause } from '../errors/skill-error.mjs';
 import { ConfigError } from '../config/config-error.mjs';
 import * as nodeCrypto from 'node:crypto';
-import { loadSingleModeApiKey, loadAIRuntimeConfig } from '../config/ai-runtime.mjs';
+import {
+  createProviderCredentialResolver,
+  loadSingleModeApiKey,
+  loadAIRuntimeConfig,
+} from '../config/ai-runtime.mjs';
 import { createControlStore } from './coordination/control-store.mjs';
 import { createDeepSeekProvider } from '../providers/deepseek/deepseek-provider.mjs';
+import {
+  createProductionDispatch,
+  isPausedEnvelope,
+  SKILL_RUNTIME_MODE,
+} from './skills/production.mjs';
+import { ADAPTER_CATALOGUE_SHA256, HOST_CONTRACT_CATALOGUE_SHA256 } from './skills/adapters/catalogue.mjs';
+import { SKILL_API_VERSION } from '../config/skill-package.mjs';
+import { finalizeAnalysis } from './analysis-schema.mjs';
 
 /** Provider adapter support in this build (extended by v1.2 multi-model). */
 export const SUPPORTED_CORE_PROVIDERS = Object.freeze(['deepseek', 'openrouter']);
@@ -135,6 +148,64 @@ function issueCode(error) {
 }
 
 /**
+ * Project the trusted AI context onto the closed ANALYZE host contract
+ * (architecture v1.1 §6.2: "Validated buildAIContext projection"). Only named
+ * fields survive; a null where the contract requires a number is refused by the
+ * adapter before any model call.
+ *
+ * @param {any} context
+ * @returns {{ market: object, position: object | null }}
+ */
+export function analyzeHostInputFromContext(context) {
+  const market = /** @type {any} */ (context)?.market ?? {};
+  const position = /** @type {any} */ (context)?.position ?? null;
+  return {
+    market: {
+      symbol: market.symbol,
+      timeframe: market.timeframe ?? null,
+      lastPrice: market.lastPrice,
+      bid: market.bid ?? null,
+      ask: market.ask ?? null,
+      candles: Array.isArray(market.candles)
+        ? market.candles.map((candle) => ({
+            startTime: candle.startTime,
+            open: candle.open,
+            high: candle.high,
+            low: candle.low,
+            close: candle.close,
+            volume: candle.volume,
+          }))
+        : [],
+      indicators: market.indicators ?? null,
+    },
+    position:
+      position === null
+        ? null
+        : {
+            symbol: position.symbol,
+            side: position.side,
+            entryPrice: position.entryPrice,
+            markPrice: position.markPrice,
+            unrealizedPnlUsd: position.unrealizedPnlUsd,
+            stopLossPrice: position.stopLossPrice ?? null,
+            takeProfitPrice: position.takeProfitPrice ?? null,
+          },
+  };
+}
+
+/**
+ * @param {string} workToken
+ * @returns {string}
+ */
+function skillWorkToken(workToken) {
+  if (typeof workToken === 'string') return workToken;
+  if (workToken !== null && typeof workToken === 'object') {
+    return String(/** @type {any} */ (workToken).id ?? /** @type {any} */ (workToken).token ?? randomUUID());
+  }
+  return randomUUID();
+}
+
+/**
  * The default provider factory. It resolves the operation → model identity and
  * dispatches to the appropriate adapter. When no registry is provided, falls back
  * to single-mode deepseek-only behavior (backward compatible).
@@ -213,6 +284,7 @@ export function createDefaultCoreProviderFactory(input) {
 /**
  * @typedef {object} CoreCompositionOptions
  * @property {ReturnType<import('../config/ai-runtime.mjs').loadAIRuntimeConfig>} config
+ * @property {Record<string, string | undefined>} [env] local secret source for the v2 credential resolver; defaults to the ambient environment
  * @property {any} controlStore
  * @property {{ artifactSha256: string } | string} artifactIdentity
  * @property {{
@@ -226,6 +298,14 @@ export function createDefaultCoreProviderFactory(input) {
  * @property {string} [instanceId]
  * @property {object} [logger]
  * @property {object} [registry] Optional ModelRegistry v1 document for multi-model routing (v1.2 extension)
+ * @property {'v2' | 'legacy'} [skillMode] reviewed dispatch mode; defaults to `config.skillMode`
+ * @property {any} [skillStore] test-only CAS injection for the v2 planner
+ * @property {{ read: (profileSha256: string) => Readonly<object> }} [profileReader] profile bytes reader
+ * @property {{ id: string, complete: (request: any) => Promise<any> }} [skillTransport] injected v2 transport
+ * @property {(identity: any) => string | null} [credentialProvider] v2 credential resolver
+ * @property {Readonly<object>} [skillArtifact] artifact identity committed by the v2 package checks
+ * @property {() => void} [skillAudit] safe v2 audit sink
+ * @property {() => number} [clock]
  */
 
 /**
@@ -253,15 +333,142 @@ export function createCoreAIComposition(options) {
     ? transport.apiKeyLoader
     : () => loadSingleModeApiKey();
 
+  // Reviewed dispatch mode. `legacy` is the explicitly authorized migration
+  // compatibility path on a v1 record; `v2` requires a schemaVersion 2 joint
+  // binding and routes ANALYZE through its approved Skill Package.
+  const skillMode = options.skillMode ?? /** @type {any} */ (config).skillMode ?? SKILL_RUNTIME_MODE.LEGACY;
+  const skillTransport = options.skillTransport ?? transport.skillTransport ?? null;
+  const credentialProvider = options.credentialProvider
+    ?? transport.credentialProvider
+    ?? createProviderCredentialResolver({ env: options.env });
+  // The artifact identity a v2 package is checked against. Environment strings
+  // never substitute for these code-owned catalogues.
+  const skillArtifact = options.skillArtifact ?? {
+    artifactSha256,
+    botVersion: options.botVersion ?? '0.1.0',
+    skillApiVersion: SKILL_API_VERSION,
+    adapterCatalogueSha256: ADAPTER_CATALOGUE_SHA256,
+    hostContractCatalogueSha256: HOST_CONTRACT_CATALOGUE_SHA256,
+  };
+
   /** @type {any} */
   let provider = null;
   /** @type {any} */
   let providerManifest = null;
 
   /**
+   * Build the v2 ANALYZE runtime. The generator owns no prompt: the packaged
+   * instruction set, layout and per-operation model identity come from the
+   * verified execution plan, and every structural fault returns the typed
+   * `ACTIVATION_PAUSED` envelope without a provider call.
+   *
+   * @param {any} input runtimeFactory input
+   */
+  function skillRuntimeFactory(input) {
+    const dispatch = createProductionDispatch({
+      configuredMode: skillMode,
+      binding: input.binding ?? null,
+      controlDir: config.controlDir,
+      controlStore,
+      store: options.skillStore,
+      profileReader: options.profileReader,
+      artifact: skillArtifact,
+      transport: skillTransport ?? undefined,
+      fetchImpl: transport.fetchImpl ?? globalThis.fetch,
+      credentialProvider,
+      identity: {
+        deploymentId: config.deploymentId,
+        generation: input.generation,
+        bindingSha256: input.binding?.bindingSha256 ?? null,
+        releaseDescriptorSha256: null,
+        slot: input.slot,
+        instanceId: input.instanceId,
+      },
+      clock,
+      uuid: randomUUID,
+      audit: options.skillAudit ?? null,
+      adapters: options.adapters,
+      freshnessMs: options.skillFreshnessMs,
+    });
+    const planEntry = dispatch.dispatch?.plan?.operations?.ANALYZE ?? null;
+    const promptVersion = planEntry === null
+      ? 'skill:unavailable'
+      : `skill:${planEntry.skill.packageId}@${planEntry.skill.version}`;
+    const modelId = (() => {
+      if (planEntry === null) return null;
+      const model = dispatch.dispatch.modelRegistry?.models?.[planEntry.modelKey];
+      return model?.modelId ?? null;
+    })();
+
+    return createGenerationRuntime({
+      binding: input.binding,
+      generation: input.generation,
+      deploymentId: config.deploymentId,
+      slot: input.slot,
+      instanceId: input.instanceId,
+      manifest: input.manifest,
+      profile: input.profile,
+      operations: ['ANALYZE'],
+      guard,
+      clock,
+      invoke: async ({ request, workToken }) => {
+        const result = await dispatch.composition.ANALYZE(
+          analyzeHostInputFromContext(/** @type {any} */ (request).context),
+          { workToken: skillWorkToken(workToken) },
+        );
+        if (isPausedEnvelope(result)) {
+          // The refusal is returned to the caller unchanged; the composition
+          // closes participant admission *after* the generation runtime's
+          // post-invoke guard check, so the typed envelope is never replaced by
+          // a guard exception.
+          return Object.freeze({ refusal: result });
+        }
+        if (/** @type {any} */ (result).ok === false) {
+          return Object.freeze({
+            outcome: createAIAnalysisOutcome({
+              status: AI_STATUS.PROVIDER_ERROR,
+              issues: [/** @type {any} */ (result).code],
+              modelId,
+              promptVersion,
+              receivedAt: clock(),
+            }),
+            provenance: null,
+          });
+        }
+        let outcome;
+        try {
+          const analysis = finalizeAnalysis(/** @type {any} */ (result).value, {
+            symbol: /** @type {any} */ (request)?.context?.market?.symbol,
+            modelId,
+            generatedAt: clock(),
+            schemaVersion: AI_ANALYSIS_SCHEMA_VERSION,
+          });
+          outcome = createAIAnalysisOutcome({
+            status: AI_STATUS.OK,
+            analysis,
+            modelId,
+            promptVersion,
+            receivedAt: analysis.generatedAt,
+          });
+        } catch {
+          outcome = createAIAnalysisOutcome({
+            status: AI_STATUS.INVALID_OUTPUT,
+            issues: ['SKILL_OUTPUT_INVALID'],
+            modelId,
+            promptVersion,
+            receivedAt: clock(),
+          });
+        }
+        return Object.freeze({ outcome, provenance: /** @type {any} */ (result).provenance });
+      },
+    });
+  }
+
+  /**
    * @param {{ manifest: any, profile: any, binding: any, generation: number, target: boolean, slot: string, instanceId: string }} input
    */
   function runtimeFactory(input) {
+    if (skillMode === SKILL_RUNTIME_MODE.V2) return skillRuntimeFactory(input);
     // A staging runtime is fully constructed (credentials validated, manifest
     // and profile pinned) but cannot serve work: admission stays closed until
     // the committed ACTIVE record matches it.
@@ -293,49 +500,55 @@ export function createCoreAIComposition(options) {
     }
 
     // ─── Multi-model routing (v1.2) ──────────────────────────────────────────
-    // When registry is provided, resolve operation → model identity from central routing table.
-    // This overrides manifest-based provider selection while preserving backward compatibility.
-    /** @type {{ resolvedIdentity: *, manifest: any, profile: any } | null} */
-    let resolution = null;
+    // When a registry is configured, ANALYZE resolves its model identity from the
+    // central routing table. The resolved input object is built **once and
+    // frozen**: the previous implementation froze `resolution` and then assigned
+    // to it, which throws in an ES module and silently disabled routing.
+    //
+    // A registry that cannot resolve ANALYZE is a configuration fault, not a
+    // licence to fall back to the manifest: in guarded mode an unresolvable route
+    // refuses ANALYZE instead of dispatching an unreviewed provider identity.
+    /** @type {Readonly<any>} */
+    let factoryInput;
     if (options.registry && options.registry.routingTable?.['ANALYZE']) {
+      let resolved;
       try {
-        const resolved = resolveOperationModel('ANALYZE', options.registry);
-        resolution = Object.freeze({
-          resolvedIdentity: resolved,
-          manifest: input.manifest,     // preserved for provenance & binding hash
-          profile: input.profile,       // preserved for settings
-        });
+        resolved = resolveOperationModel('ANALYZE', options.registry);
       } catch (err) {
-        logger.warn('model resolution failed — falling back to manifest-based dispatch', {
-          code: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
+        throw new CoordinationError('the ANALYZE model route cannot be resolved from the registry', {
+          code: COORDINATION_ERROR_CODE.INVALID_EVIDENCE,
+          cause: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
         });
-        resolution = null; // fall through to manifest path
       }
-    }
-
-    const factoryInput = resolution ?? Object.freeze({
-      manifest: input.manifest,
-      profile: input.profile,
-      apiKey,
-      fetchImpl: transport.fetchImpl,
-      providerId: input.manifest.providerId,
-      model: input.manifest.modelId,
-      baseUrl: input.manifest.canonicalBaseUrl,
-      settings: getOperationSettings(input.profile, 'ANALYZE'),
-    });
-
-    if (resolution) {
-      factoryInput.resolvedIdentity = resolution.resolvedIdentity;
-      factoryInput.apiKey = apiKey;
-      factoryInput.fetchImpl = transport.fetchImpl;
-      factoryInput.settings = getOperationSettings(resolution.profile, 'ANALYZE');
+      factoryInput = Object.freeze({
+        manifest: input.manifest,
+        profile: input.profile,
+        resolvedIdentity: resolved,
+        apiKey,
+        fetchImpl: transport.fetchImpl,
+        providerId: resolved.providerId,
+        model: resolved.modelId,
+        baseUrl: resolved.canonicalBaseUrl,
+        settings: getOperationSettings(input.profile, 'ANALYZE'),
+      });
+    } else {
+      factoryInput = Object.freeze({
+        manifest: input.manifest,
+        profile: input.profile,
+        apiKey,
+        fetchImpl: transport.fetchImpl,
+        providerId: input.manifest.providerId,
+        model: input.manifest.modelId,
+        baseUrl: input.manifest.canonicalBaseUrl,
+        settings: getOperationSettings(input.profile, 'ANALYZE'),
+      });
     }
 
     const createProvider = typeof transport.createProvider === 'function'
       ? transport.createProvider
       : createDefaultCoreProviderFactory;
     provider = createProvider(factoryInput);
-    providerManifest = resolution ? resolution.manifest : input.manifest;
+    providerManifest = input.manifest;
     return createGenerationRuntime({
       binding: input.binding,
       generation: input.generation,
@@ -393,6 +606,24 @@ export function createCoreAIComposition(options) {
    */
   async function analyzeWithProvenance(context) {
     if (!guard.status().inferenceEnabled) {
+      const errorCode = guard.status().errorCode;
+      if (isStructuralCause(errorCode)) {
+        // A participant closed by a structural Skill fault keeps answering with
+        // the exact typed envelope and the original safe cause (architecture
+        // §6.3) — never a PROVIDER_ERROR remap.
+        return Object.freeze({
+          outcome: Object.freeze({
+            ok: /** @type {false} */ (false),
+            operation: 'ANALYZE',
+            code: ACTIVATION_PAUSED,
+            cause: errorCode,
+            retryable: /** @type {false} */ (false),
+            requestId: randomUUID(),
+          }),
+          provenance: null,
+          settle: () => {},
+        });
+      }
       return Object.freeze({
         outcome: createAIAnalysisOutcome({
           status: AI_STATUS.PROVIDER_ERROR,
@@ -415,12 +646,46 @@ export function createCoreAIComposition(options) {
         throw new CoordinationError('no runtime is admitted', { code: COORDINATION_ERROR_CODE.ACTIVATION_PAUSED });
       }
       const settings = getOperationSettings(runtime.profile, 'ANALYZE');
-      const outcome = await runtime.complete('ANALYZE', { context, settings }).then((envelope) => envelope.result);
+      const envelope = await runtime.complete('ANALYZE', { context, settings });
       guard.check(token);
+      /** @type {any} */
+      const payload = envelope.result;
+      if (payload !== null && typeof payload === 'object' && 'refusal' in payload) {
+        // Structural Skill refusal: the exact typed envelope leaves the public
+        // boundary unchanged (architecture §6.2). It is never remapped to
+        // PROVIDER_ERROR, null or an empty analysis. Admission closes here,
+        // after the runtime's post-invoke fence check, so the refusal is not
+        // replaced by a guard exception.
+        guard.closeAdmission(/** @type {any} */ (payload.refusal).cause);
+        const held = token;
+        let settled = false;
+        return Object.freeze({
+          outcome: payload.refusal,
+          provenance: null,
+          settle: () => {
+            if (settled) return;
+            settled = true;
+            guard.endWork(held);
+          },
+        });
+      }
+      if (payload !== null && typeof payload === 'object' && 'outcome' in payload) {
+        const held = token;
+        let settled = false;
+        return Object.freeze({
+          outcome: payload.outcome,
+          provenance: payload.provenance ?? null,
+          settle: () => {
+            if (settled) return;
+            settled = true;
+            guard.endWork(held);
+          },
+        });
+      }
       const held = token;
       let settled = false;
       return Object.freeze({
-        outcome,
+        outcome: envelope.result,
         provenance: runtime.provenance,
         settle: () => {
           if (settled) return;

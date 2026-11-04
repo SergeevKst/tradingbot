@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "packageId": "trading.monitor",
+  "version": "1.0.0",
+  "operation": "MONITOR",
+  "title": "Open position monitor",
+  "description": "Decide HOLD or EXIT for one open position. Advisory; a human confirms every exit.",
+  "instructions": "instructions.md",
+  "inputSchema": "input.schema.json",
+  "outputSchema": "output.schema.json",
+  "policy": "policy.json",
+  "promptLayout": "prompt-layout.json",
+  "inputContract": {
+    "id": "monitor.input",
+    "version": "1.0.0"
+  },
+  "outputContract": {
+    "id": "monitor.output",
+    "version": "1.0.0"
+  },
+  "compatibility": {
+    "botVersionRange": ">=0.1.0 <0.2.0",
+    "skillApiVersion": 1
+  },
+  "requiredModelCapabilities": {
+    "temperature": {
+      "min": 0,
+      "max": 0
+    },
+    "responseFormats": [
+      "json_object"
+    ],
+    "reasoningEfforts": [
+      "low"
+    ],
+    "minOutputTokens": 128,
+    "maxOutputTokens": 512,
+    "stream": false
+  },
+  "dependencies": [],
+  "provenance": {
+    "authorId": "baseline-extraction",
+    "createdAt": "2026-10-29T00:00:00Z",
+    "sourceRevision": "unreleased-example"
+  }
+}

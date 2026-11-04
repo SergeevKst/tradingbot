@@ -21,9 +21,12 @@
     "test:mcp": "node --env-file=.env scripts/test_mcp_proxy.mjs",
     "mcp:inspect": "node --env-file=.env scripts/list_tools.mjs",
     "inspect:accounts": "node --env-file=.env scripts/inspect_accounts.mjs",
-    "earn:move": "node --env-file=.env scripts/earn_to_trading.mjs"
+    "earn:move": "node --env-file=.env scripts/earn_to_trading.mjs",
+    "skill:validate": "node scripts/skill_package.mjs validate",
+    "skill:compare": "node scripts/skill_compare.mjs"
   },
   "dependencies": {
+    "ajv": "8.17.1",
     "bybit-official-trading-server": "^2.1.23",
     "grammy": "^1.46.0"
   },
