@@ -11,6 +11,20 @@
  * accounted separately on the account (see `fee-model.mjs`), so "unrealized PnL"
  * always means the same thing everywhere it appears.
  *
+ * The entry fee is different: it is paid once, at open, and the account ledger
+ * charges it immediately. The position still carries `entryFeeUsd` as its own
+ * cost basis, because the round-trip result reported when the position closes
+ * must be net of BOTH fees:
+ *
+ *   netPnlUsd = grossPnl - entryFeeUsd - exitFeeUsd
+ *
+ * Dropping that field during validation (which every mark-to-market and every
+ * reload performs) silently drops the entry fee out of the round-trip result,
+ * while the account equity still has it deducted. Summed round-trip PnL then no
+ * longer reconciles with the change in equity. `entryFeeUsd` is therefore part
+ * of the persisted field set and is preserved by validation, not recomputed:
+ * the fee model is not available here, and re-deriving it would be a guess.
+ *
  * @module state/paper-position
  */
 import { ConfigError } from '../config/config-error.mjs';
@@ -25,6 +39,7 @@ import { SIDE, resolveSide } from '../domain/side.mjs';
  * @property {number} markPrice latest observed price
  * @property {number} leverage effective leverage intended for this position
  * @property {number} initialMarginUsd margin reserved when the position opened
+ * @property {number} entryFeeUsd fee charged at entry — part of the round-trip cost basis
  * @property {number | null} stopLoss
  * @property {number | null} takeProfit
  * @property {number} unrealizedPnlUsd
@@ -118,6 +133,7 @@ export function validatePaperPosition(raw) {
 
   const stopLoss = optionalLevel(input.stopLoss, 'stopLoss');
   const takeProfit = optionalLevel(input.takeProfit, 'takeProfit');
+  const entryFeeUsd = optionalFee(input.entryFeeUsd, 'entryFeeUsd');
 
   const quantity = Number(input.quantity);
   const entryPrice = Number(input.entryPrice);
@@ -133,6 +149,7 @@ export function validatePaperPosition(raw) {
     initialMarginUsd: Number.isFinite(Number(input.initialMarginUsd))
       ? Number(input.initialMarginUsd)
       : computeInitialMargin({ notionalUsd: entryPrice * quantity, leverage }),
+    entryFeeUsd,
     stopLoss,
     takeProfit,
     unrealizedPnlUsd: computeUnrealizedPnl({ side, entryPrice, markPrice, quantity }),
@@ -171,6 +188,31 @@ function optionalLevel(value, field) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new ConfigError(`PaperPosition.${field} must be a positive number or null, got ${JSON.stringify(value)}`, {
+      field,
+      value,
+    });
+  }
+  return parsed;
+}
+
+/**
+ * A cumulative, non-negative money amount that may legitimately be zero.
+ *
+ * An ABSENT value means "this position predates the field" (state persisted by
+ * an older build) and is read as 0, which is the only value that keeps such a
+ * document internally consistent. A PRESENT value that is negative or not
+ * finite is corrupt data and is refused rather than quietly coerced: silently
+ * zeroing it would hide real money.
+ *
+ * @param {unknown} value
+ * @param {string} field
+ * @returns {number}
+ */
+function optionalFee(value, field) {
+  if (value === undefined || value === null || value === '') return 0;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new ConfigError(`PaperPosition.${field} must be a finite number >= 0, got ${JSON.stringify(value)}`, {
       field,
       value,
     });
