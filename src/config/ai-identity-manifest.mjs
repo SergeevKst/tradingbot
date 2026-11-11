@@ -31,7 +31,36 @@ export const PROVIDER_HOST_ALLOWLIST = Object.freeze({
   deepseek: Object.freeze(['api.deepseek.com']),
   kimi: Object.freeze(['api.moonshot.ai', 'api.moonshot.cn']),
   openrouter: Object.freeze(['openrouter.ai']),
+  // A local-CLI provider reaches no HTTP host at all.
+  codex: Object.freeze([]),
 });
+
+/**
+ * Local-process providers: no HTTP endpoint, no credential in this process. The
+ * identity is a fixed sentinel so a manifest stays content-addressable and a
+ * reviewer can see at a glance that no remote API is involved.
+ */
+export const LOCAL_CLI_BASE_URLS = Object.freeze({
+  codex: 'cli://codex',
+});
+
+/** Providers that are served by a local executable rather than an HTTPS API. */
+export const LOCAL_CLI_PROVIDERS = Object.freeze(Object.keys(LOCAL_CLI_BASE_URLS));
+
+/** Every provider id this build can name in a manifest. */
+export const PROVIDER_IDS = Object.freeze([
+  ...Object.keys(PROVIDER_HOST_ALLOWLIST),
+  ...LOCAL_CLI_PROVIDERS,
+]);
+
+/**
+ * @param {unknown} providerId
+ * @returns {boolean}
+ */
+export function isLocalCliProvider(providerId) {
+  return typeof providerId === 'string'
+    && Object.prototype.hasOwnProperty.call(LOCAL_CLI_BASE_URLS, providerId);
+}
 
 /** Default identity port; any other explicit port is noncanonical. */
 export const HTTPS_DEFAULT_PORT = '443';
@@ -104,6 +133,18 @@ export function normalizeBaseUrl(raw, options) {
   }
   if (raw.includes('\\')) {
     throw new ConfigError(`${field} must not contain backslashes`, { field });
+  }
+  // A local-CLI provider has no URL to normalize: exactly one sentinel is legal,
+  // and it can never be used to smuggle an HTTP endpoint into a manifest.
+  if (isLocalCliProvider(options.providerId)) {
+    const expected = LOCAL_CLI_BASE_URLS[/** @type {string} */ (options.providerId)];
+    if (raw !== expected) {
+      throw new ConfigError(
+        `${field} for provider ${options.providerId} must be exactly ${JSON.stringify(expected)}`,
+        { field },
+      );
+    }
+    return expected;
   }
   /** @type {URL} */
   let url;
@@ -194,6 +235,15 @@ export function isLoopbackHost(hostname) {
  * @returns {string}
  */
 export function deriveChatCompletionsUrl(manifest) {
+  const providerId = /** @type {any} */ (manifest)?.providerId;
+  if (isLocalCliProvider(providerId)) {
+    // Fail closed: a local-CLI provider has no HTTP endpoint, and inventing one
+    // would silently turn an adapter bug into a network call to the wrong place.
+    throw new ConfigError(
+      `provider ${JSON.stringify(providerId)} is a local-CLI provider and has no chat-completions endpoint`,
+      { field: 'providerId' },
+    );
+  }
   const base = /** @type {any} */ (manifest).canonicalBaseUrl;
   if (typeof base !== 'string' || !base.endsWith(CANONICAL_API_PATH)) {
     throw new ConfigError('manifest has no canonical API root', { field: 'canonicalBaseUrl' });
@@ -238,8 +288,11 @@ export function validateModelIdentityManifest(raw, options = {}) {
     throw new ConfigError('manifest schemaVersion must be exactly 1', { field: 'schemaVersion' });
   }
   assertIdentifier(input.manifestVersion, 'manifestVersion');
-  if (input.providerId !== 'deepseek' && input.providerId !== 'kimi') {
-    throw new ConfigError('manifest providerId must be deepseek or kimi', { field: 'providerId' });
+  if (!PROVIDER_IDS.includes(/** @type {string} */ (input.providerId))) {
+    throw new ConfigError(
+      `manifest providerId must be one of ${PROVIDER_IDS.join(', ')}`,
+      { field: 'providerId' },
+    );
   }
   if (typeof input.modelId !== 'string') {
     throw new ConfigError('manifest modelId must be a string', { field: 'modelId' });

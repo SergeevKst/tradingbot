@@ -17,6 +17,7 @@
     "paper:simulate": "node --env-file=.env scripts/paper_simulate.mjs",
     "paper:smoke": "node scripts/paper_smoke_run.mjs",
     "paper:test": "node scripts/paper_test.mjs",
+    "codex:check": "node scripts/codex_connectivity_check.mjs",
     "backtest": "node scripts/backtest_run.mjs",
     "verify:key": "node --env-file=.env scripts/verify_bybit_key.mjs",
     "test:mcp": "node --env-file=.env scripts/test_mcp_proxy.mjs",

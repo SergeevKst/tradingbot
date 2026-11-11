@@ -120,3 +120,19 @@ Ordered by what has to happen first. **B1 and B2 are recorded in
 
 Until steps 1–4 are done, PAPER trading is "deterministic strategy + deterministic
 gate" and is honestly observable. It is not "AI paper trading".
+
+## 7. Update — Codex subscription provider and the PAPER bridge
+
+A follow-up task added a Codex provider (the owner's ChatGPT/Codex subscription,
+no API key) and the PAPER bridge this document asked for. Full evidence and the
+residual risks live in [CODEX_INTEGRATION.md](CODEX_INTEGRATION.md); the effect on
+the blockers above is:
+
+| ID | Status after the Codex integration |
+| --- | --- |
+| B3 | **implemented, not yet driven by a loop** — `src/ai/paper-decision-sink.mjs` forwards a validated `AIAnalysis` to `PaperSession.submit()`; the Risk Engine remains the only gate |
+| B5 | **closed for the AI path** — the sink refuses a snapshot older than `stalenessMs`; the PAPER session itself still has no gate |
+| B8 | **bounded** — measured ≈ 15.9 k input tokens and ≈ 10 s per call, single in-flight call, hourly call budget; the cost is a subscription allowance, not metered billing |
+
+B1, B2, B4, B6, B7 and B9 are unchanged. AI dispatch is still disabled by default
+(`AI_CODEX_ENABLED=false`), and the Telegram live path was not modified.

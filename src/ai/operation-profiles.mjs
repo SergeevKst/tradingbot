@@ -50,11 +50,18 @@ export const RESPONSE_FORMATS = Object.freeze(['json_object', 'text']);
 
 // ─── Multi-Model Routing (v1.2 extension) ───────────────────────────────────
 
-/** Valid provider identifiers allowed by capability profiles (UAI v1.2 multi-model routing). */
+/**
+ * Valid provider identifiers allowed by capability profiles (UAI v1.2 multi-model routing).
+ *
+ * `codex` (added for the owner's Codex subscription) is a LOCAL-CLI provider: it
+ * has no HTTP endpoint and no API key, so its identity is the fixed sentinel
+ * `cli://codex` (`providers/codex/codex-provider.mjs`).
+ */
 export const VALID_PROVIDERS = Object.freeze([
   'deepseek',
   'kimi',
   'openrouter', // new in v1.2 — OpenAI-compatible proxy endpoint
+  'codex', // local Codex CLI, subscription-backed (no API key, no metered API)
 ]);
 
 /** Trust tiers for model classification. Consequential ops NEVER silently fall through on provider failure. */
@@ -146,6 +153,16 @@ export const DEFAULT_CAPABILITY_PROFILE_BODIES = Object.freeze({
     schemaVersion: 1,
     profileId: 'kimi-unified-v1',
     providerId: 'kimi',
+    operations: DEFAULT_OPERATIONS,
+  }),
+  // A local CLI provider has no endpoint settings; the per-operation settings
+  // are the same reviewed defaults as the HTTP transports. `temperature` is
+  // inherited by every operation, and the Codex adapter refuses a profile whose
+  // ANALYZE temperature is non-zero or whose response format is not JSON.
+  codex: Object.freeze({
+    schemaVersion: 1,
+    profileId: 'codex-unified-v1',
+    providerId: 'codex',
     operations: DEFAULT_OPERATIONS,
   }),
 });
@@ -243,8 +260,11 @@ export function validateCapabilityProfile(raw) {
     throw new ConfigError('capability profile schemaVersion must be 1', { field: 'profile.schemaVersion' });
   }
   assertIdentifier(input.profileId, 'profile.profileId');
-  if (input.providerId !== 'deepseek' && input.providerId !== 'kimi') {
-    throw new ConfigError('capability profile providerId must be deepseek or kimi', { field: 'profile.providerId' });
+  if (!VALID_PROVIDERS.includes(/** @type {string} */ (input.providerId))) {
+    throw new ConfigError(
+      `capability profile providerId must be one of ${VALID_PROVIDERS.join(', ')}`,
+      { field: 'profile.providerId' },
+    );
   }
   if (!isPlainObject(input.operations)) {
     throw new ConfigError('capability profile operations must be an object', { field: 'profile.operations' });
@@ -302,12 +322,12 @@ export function capabilityProfileSha256(profile) {
 /**
  * Build a profile from a reviewed body with optional per-operation overrides.
  *
- * @param {{ profileId: string, providerId: 'deepseek' | 'kimi', operations?: Record<string, object> }} input
+ * @param {{ profileId: string, providerId: 'deepseek' | 'kimi' | 'openrouter' | 'codex', operations?: Record<string, object> }} input
  * @returns {Readonly<object>}
  */
 export function createCapabilityProfile(input) {
   const base = DEFAULT_CAPABILITY_PROFILE_BODIES[input.providerId];
-  if (!base) throw new ConfigError('providerId must be deepseek or kimi', { field: 'providerId' });
+  if (!base) throw new ConfigError(`providerId must be one of ${VALID_PROVIDERS.join(', ')}`, { field: 'providerId' });
   return validateCapabilityProfile({
     schemaVersion: 1,
     profileId: input.profileId,
