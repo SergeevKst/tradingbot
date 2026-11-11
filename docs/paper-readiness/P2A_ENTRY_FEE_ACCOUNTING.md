@@ -78,6 +78,12 @@ Two deliberate decisions:
 The field is preserved, never recomputed: the fee model is not available inside
 the validator, and re-deriving the fee there would be a guess.
 
+`STATE_SCHEMA_VERSION` is deliberately **not** bumped. The change is additive and
+backward compatible in the direction that matters (an old state file without the
+field still restores, reading 0); bumping it would make every existing paper
+account unreadable, which is a worse outcome than the field being dropped by an
+older binary.
+
 ## Evidence
 
 Pre-fix reproduction (same fixture, `entryRate = exitRate = 0.001`):
