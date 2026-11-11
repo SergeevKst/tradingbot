@@ -51,6 +51,7 @@ import { createMarketSnapshot } from '../src/market/market-snapshot.mjs';
 import { normalizePrice } from '../src/market/normalize.mjs';
 import { MA_CROSSOVER_ID } from '../src/strategy/deterministic-ma-crossover.mjs';
 import { createLogger } from '../src/util/logger.mjs';
+import { createAuditedFetch } from './lib/audited-market-fetch.mjs';
 
 const RECONCILIATION_TOLERANCE_USD = 1e-6;
 
@@ -73,56 +74,6 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const logger = createLogger('SMOKE');
-
-/**
- * A fetch wrapper that records every request and refuses anything a PAPER run
- * must never do. This is the executable form of the zero-order claim: the
- * market-data adapter physically cannot write to the exchange through it.
- *
- * @param {{ requests: object[] }} record
- * @returns {typeof fetch}
- */
-function createAuditedFetch(record) {
-  const realFetch = globalThis.fetch.bind(globalThis);
-
-  return async function auditedFetch(input, init = {}) {
-    const url = new URL(typeof input === 'string' ? input : String(input.url ?? input));
-    const method = String(init.method ?? 'GET').toUpperCase();
-    const entry = {
-      method,
-      path: url.pathname,
-      query: url.searchParams.toString(),
-      at: new Date().toISOString(),
-    };
-    record.requests.push(entry);
-
-    if (method !== 'GET') {
-      throw new Error(`SMOKE ABORT: refusing ${method} ${url.pathname} — PAPER must not write to the exchange`);
-    }
-    if (!url.pathname.startsWith('/v5/market/')) {
-      throw new Error(`SMOKE ABORT: refusing ${url.pathname} — PAPER may only read public market data`);
-    }
-    // Order / position / account endpoints are writes or private reads. A public
-    // market path such as /v5/market/orderbook is fine; /v5/order/create is not.
-    for (const forbidden of ['/v5/order', '/v5/position', '/v5/account', '/v5/asset']) {
-      if (url.pathname.startsWith(forbidden)) {
-        throw new Error(`SMOKE ABORT: refusing the private endpoint ${url.pathname}`);
-      }
-    }
-    // No credential header may ever be present on a request this harness makes.
-    const headers = init.headers ?? {};
-    const headerNames = typeof headers.forEach === 'function' && !Array.isArray(headers)
-      ? [...(/** @type {Map<string, string>} */ (headers).keys())]
-      : Object.keys(headers);
-    for (const name of headerNames) {
-      if (/bapi|api-key|authorization|sign/i.test(String(name))) {
-        throw new Error(`SMOKE ABORT: refusing to send the auth header ${name}`);
-      }
-    }
-
-    return realFetch(input, init);
-  };
-}
 
 /**
  * @param {number} value
@@ -546,5 +497,3 @@ main().catch((error) => {
   console.error('paper:smoke failed:', error instanceof Error ? error.stack ?? error.message : String(error));
   process.exitCode = 1;
 });
-
-export { createAuditedFetch };

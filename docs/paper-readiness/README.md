@@ -49,3 +49,6 @@ prompt-contract tests and were **not** weakened or deleted:
 
 They are recorded as blocker **B4** in `AI_PIPELINE_READINESS.md`; all three sit
 in the AI prompt layer, not in the PAPER path.
+
+With this task's changes: 938 tests, 934 pass, the **same 3 pre-existing
+failures**, 1 skipped (+40 tests, no assertion weakened).

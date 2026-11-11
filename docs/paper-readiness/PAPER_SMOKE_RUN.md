@@ -57,41 +57,43 @@ Command:
 
 ```bash
 node scripts/paper_smoke_run.mjs \
-  --out artifacts/smoke-run-2 --symbol BTCUSDT --interval 5 --candles 200
+  --out artifacts/paper-smoke --symbol BTCUSDT --interval 5 --candles 200
 ```
 
 | Item | Value |
 | --- | --- |
-| Data | `BTCUSDT` 5m, 200 candles, 2026-11-11T00:40Z → 2026-11-11T17:15Z |
+| Data | `BTCUSDT` 5m, 200 candles, 2026-11-11T00:50Z → 2026-11-11T17:25Z |
 | Data source | public REST `https://api.bybit.com` |
-| Data SHA-256 | `1ae137ed02ce604677a96b902e6d97e2833c7dcaf9e76184f6dd768ac78b92ba` |
+| Data SHA-256 | `c00c2207978bffdb6c0e083aa0a652d97cda10199b986aa7b2809144602b714f` |
 | Spread model | observed live spread 0.1 USD around each close, tick 0.1 |
 | Strategy | `deterministic-ma-crossover` (3/6 SMA, ATR 5 × 1.5 stop, 2R target) |
 | Entries | 5 |
-| Exits | 5 (all `TAKE_PROFIT`) |
-| Rejections | 42 — `CONFLICTING_POSITION` 21, `DUPLICATE_PROPOSAL` 21 |
+| Exits | 5 — 4 `TAKE_PROFIT`, 1 `STOP_LOSS` |
+| Rejections | 41 — `CONFLICTING_POSITION` 21, `DUPLICATE_PROPOSAL` 20 |
 | Equity start | 340.000000 USD |
-| Equity end | 346.994833 USD |
-| Equity change | +6.994833 USD |
-| Σ round-trip net PnL | +6.994833 USD |
-| Reconciliation delta | 2.665e-14 USD (tolerance 1e-6) |
-| Fees paid | 2.951967 USD (entry 1.474214 + exit 1.477753) |
-| Realized (gross of fees) | 9.946800 USD |
+| Equity end | 344.558888 USD |
+| Equity change | +4.558888 USD |
+| Σ round-trip net PnL | +4.558888 USD |
+| Reconciliation delta | 2.309e-14 USD (tolerance 1e-6) |
+| Fees paid | 2.953112 USD (entry 1.474893 + exit 1.478219) |
+| Realized (gross of fees) | 7.512000 USD |
 | Network requests | 4, all `GET /v5/market/*`; 0 non-market, 0 non-GET |
 | Real orders placed | **0** |
 
-### Per-trade detail (from `smoke-run-2/smoke-summary.json`)
+### Per-trade detail (from `paper-smoke/smoke-summary.json`)
 
-| # | Side | Qty | Entry | Exit | Entry fee | Exit fee | Gross | **Net** |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | LONG | 0.004 | 73492.2 | 73939.6 | 0.293969 | 0.295758 | 1.789600 | **1.199873** |
-| 2 | SHORT | 0.004 | 73839.2 | 73518.8 | 0.295357 | 0.294075 | 1.281600 | **0.692168** |
-| 3 | LONG | 0.004 | 73731.4 | 74091.0 | 0.294926 | 0.296364 | 1.438400 | **0.847110** |
-| 4 | SHORT | 0.004 | 73869.5 | 73388.9 | 0.295478 | 0.293556 | 1.922400 | **1.333366** |
-| 5 | LONG | 0.004 | 73621.2 | 74499.9 | 0.294485 | 0.298000 | 3.514800 | **2.922316** |
-| | | | | | | | Σ | **6.994833** |
+| # | Side | Qty | Entry | Exit | Exit reason | Entry fee | Exit fee | Gross | **Net** |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | SHORT | 0.004 | 73662.0 | 73939.7 | STOP_LOSS | 0.294648 | 0.295759 | −1.110800 | **−1.701207** |
+| 2 | SHORT | 0.004 | 73839.2 | 73518.8 | TAKE_PROFIT | 0.295357 | 0.294075 | 1.281600 | **0.692168** |
+| 3 | LONG | 0.004 | 73731.4 | 74091.0 | TAKE_PROFIT | 0.294926 | 0.296364 | 1.438400 | **0.847110** |
+| 4 | SHORT | 0.004 | 73869.5 | 73388.9 | TAKE_PROFIT | 0.295478 | 0.293556 | 1.922400 | **1.333366** |
+| 5 | LONG | 0.004 | 73621.2 | 74616.3 | TAKE_PROFIT | 0.294485 | 0.298465 | 3.980400 | **3.387450** |
+| | | | | | | | | Σ | **4.558888** |
 
-The identity that must hold for any run is the one the checks assert:
+Both a losing and a winning round trip are present, so the reconciliation is not
+an artefact of only-good trades. The identity that must hold for any run is the
+one the checks assert:
 
 ```
 equity_change == Σ(round-trip net PnL) == Σ(POSITION_CLOSED.pnl in journal)
@@ -100,46 +102,49 @@ equity_change == Σ(round-trip net PnL) == Σ(POSITION_CLOSED.pnl in journal)
 both within 1e-6. The authoritative numbers are always the ones inside that
 run's `smoke-summary.json`.
 
-### Journal excerpt (first round trip)
+### Journal excerpt (first round trip, a stop-out)
 
 ```
-{"timestamp":"2026-11-11T01:20:00.000Z","eventType":"STRATEGY_DECISION","reason":"EMIT",...}
-{"timestamp":"2026-11-11T01:20:00.000Z","eventType":"SIGNAL_RECEIVED","side":"LONG","metadata":{"entryPrice":73492.2,"stopLossPrice":73293.12,"takeProfitPrice":73890.36,"mode":"PAPER"}}
-{"timestamp":"2026-11-11T01:20:00.000Z","eventType":"RISK_ACCEPTED","quantity":0.004626341298804499,"reason":"APPROVED","metadata":{"riskAmountUsd":0.9210120257660077,"positionNotionalUsd":340,"riskReward":2}}
-{"timestamp":"2026-11-11T01:20:00.000Z","eventType":"ORDER_FILLED","quantity":0.004,"price":73492.2,"fee":0.2939688,"reason":"market entry filled at ask"}
-{"timestamp":"2026-11-11T01:20:00.000Z","eventType":"POSITION_OPENED","quantity":0.004,"price":73492.2,"metadata":{"stopLoss":73293.12,"takeProfit":73890.36,"leverage":2,"initialMarginUsd":146.9844}}
-{"timestamp":"2026-11-11T05:45:00.000Z","eventType":"TAKE_PROFIT_FILLED","quantity":0.004,"price":73939.6,"pnl":1.199872800000035,"fee":0.29575840000000003,"metadata":{"entryPrice":73492.2,"grossPnlUsd":1.789600000000035,"exitFeeUsd":0.29575840000000003,"entryFeeUsd":0.2939688,"triggerLevel":73890.36}}
-{"timestamp":"2026-11-11T05:45:00.000Z","eventType":"POSITION_CLOSED","quantity":0.004,"price":73939.6,"pnl":1.199872800000035,"fee":0.29575840000000003,"metadata":{"entryPrice":73492.2,"equityUsd":341.1998728}}
+{"timestamp":"2026-11-11T01:50:00.000Z","eventType":"STRATEGY_DECISION","side":"SHORT","reason":"EMIT","metadata":{"strategyId":"deterministic-ma-crossover"}}
+{"timestamp":"2026-11-11T01:50:00.000Z","eventType":"SIGNAL_RECEIVED","side":"SHORT","metadata":{"entryPrice":73662,"stopLossPrice":73901.97,"takeProfitPrice":73182.06,"mode":"PAPER"}}
+{"timestamp":"2026-11-11T01:50:00.000Z","eventType":"RISK_ACCEPTED","quantity":0.00461567701121338,"reason":"APPROVED","metadata":{"riskAmountUsd":1.1076240123808803,"positionNotionalUsd":340,"riskReward":2}}
+{"timestamp":"2026-11-11T01:50:00.000Z","eventType":"ORDER_FILLED","quantity":0.004,"price":73662,"fee":0.294648,"reason":"market entry filled at bid"}
+{"timestamp":"2026-11-11T01:50:00.000Z","eventType":"POSITION_OPENED","quantity":0.004,"price":73662,"metadata":{"stopLoss":73901.97,"takeProfit":73182.06,"leverage":2,"initialMarginUsd":147.324}}
+{"timestamp":"2026-11-11T05:45:00.000Z","eventType":"STOP_LOSS_FILLED","quantity":0.004,"price":73939.7,"pnl":-1.7012067999999885,"fee":0.2957588,"metadata":{"entryPrice":73662,"grossPnlUsd":-1.1107999999999885,"exitFeeUsd":0.2957588,"entryFeeUsd":0.294648,"triggerLevel":73901.97}}
+{"timestamp":"2026-11-11T05:45:00.000Z","eventType":"POSITION_CLOSED","quantity":0.004,"price":73939.7,"pnl":-1.7012067999999885,"fee":0.2957588,"metadata":{"entryPrice":73662,"equityUsd":338.5934412}}
 ```
 
-The `pnl` on the close event is `grossPnlUsd - exitFeeUsd - entryFeeUsd` — the
-entry fee is carried on the position and subtracted at close, which is the P2-A
-fix made visible in the audit trail.
+The `pnl` on the close event is `grossPnlUsd - exitFeeUsd - entryFeeUsd`
+(`−1.1108 − 0.2957588 − 0.294648`), and that is exactly the equity change for the
+trade (`340 → 338.5934412`). The entry fee is carried on the position and
+subtracted at close, which is the P2-A fix made visible in the audit trail.
 
 ## Reproducibility proof
 
 Two runs over the same recorded file:
 
 ```
-cmp smoke-run-2/journal.jsonl smoke-run-2-replay/journal.jsonl   -> identical
-cmp smoke-run-2/paper-state.json smoke-run-2-replay/paper-state.json -> identical
-diff smoke-run-2/smoke-summary.json smoke-run-2-replay/smoke-summary.json
+cmp paper-smoke/journal.jsonl paper-smoke-replay/journal.jsonl      -> identical
+cmp paper-smoke/paper-state.json paper-smoke-replay/paper-state.json -> identical
+diff paper-smoke/smoke-summary.json paper-smoke-replay/smoke-summary.json
   -> only `provenance.source`, `provenance.endpoints` and `execution.network.*`
      differ (the replay makes no requests)
 ```
 
-Both runs end at the same equity (346.994833), the same fees (2.951967) and the
-same reconciliation delta (2.665e-14).
+Both runs end at the same equity (344.558888), the same fees (2.953112) and the
+same reconciliation delta (2.309e-14).
 
 ## Zero-order proof
 
 Two independent mechanisms, both exercised:
 
 1. **Design:** the market-data adapter is wired to an audited `fetch` wrapper
-   (`createAuditedFetch` in the script). Every request is recorded, and the
+   (`scripts/lib/audited-market-fetch.mjs`). Every request is recorded, and the
    wrapper throws on a non-`GET` method, on any path outside `/v5/market/`, on
    `/v5/order|position|account|asset`, and on any auth-looking header. A write
-   attempt therefore fails the run, it cannot pass silently.
+   attempt therefore fails the run, it cannot pass silently. The wrapper itself
+   is unit-tested in `test/paper-smoke-audit-fetch.test.mjs` (8 cases) — a guard
+   nobody tests is a comment.
 2. **Structure:** `test/paper-isolation.test.mjs` proves the PAPER import closure
    has no HTTP client at all and that a full lifecycle performs zero network
    calls (`globalThis.fetch` replaced with a counting stub → 0).
