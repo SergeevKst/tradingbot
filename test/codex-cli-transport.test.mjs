@@ -235,6 +235,30 @@ test('TRANSPORT: a failing run reports a sanitized reason, never a credential', 
   assert.ok(!result.detail.includes('eyJhbGciOiJIUzI1NiJ9'), 'a JWT must be redacted');
 });
 
+test('TRANSPORT: a non-zero exit fails closed even when the output looks complete', async () => {
+  // S2-1 regression: `codex exec` can write a fully valid `-o` artifact and a
+  // completed agent_message event before dying. That is a failed process, not a
+  // successful call, and the transport must not consume the content.
+  const { spawnImpl } = spawnDouble((argv, _options, child) => {
+    const outIndex = argv.indexOf('-o');
+    writeFileSync(argv[outIndex + 1], '{"bias":"BULLISH","confidence":0.9,"rationale":"file"}', 'utf8');
+    child.stdout.emit(
+      'data',
+      `${JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: '{"bias":"BULLISH","confidence":0.9,"rationale":"stream"}' } })}\n`,
+    );
+    child.stderr.emit('data', 'codex exec aborted after writing output');
+    child.emit('close', 3);
+  });
+  const transport = createCodexCliTransport({ spawnImpl, env: {} });
+  const result = await transport.complete({ prompt: 'p', model: 'gpt-6.1-sol' });
+
+  assert.equal(result.ok, false, 'a non-zero CLI exit must never be reported as success');
+  assert.equal(result.reason, 'EXIT_NONZERO');
+  assert.equal(result.exitCode, 3);
+  assert.equal(result.content, undefined, 'no partially written answer may be returned');
+  assert.equal(transport.stats().calls, 1);
+});
+
 test('TRANSPORT: a structured error event is reported as CLI_ERROR with its message', async () => {
   const { spawnImpl } = spawnDouble((_argv, _options, child) => {
     child.stdout.emit(

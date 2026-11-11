@@ -132,6 +132,22 @@ test('CODEX PROVIDER: a transport failure is PROVIDER_ERROR with the transport r
   assert.deepEqual(outcome.issues, ['CODEX_BUDGET_EXHAUSTED']);
 });
 
+test('CODEX PROVIDER: EXIT_NONZERO maps to PROVIDER_ERROR even with a non-empty answer', async () => {
+  // S2-1 end to end: the transport's fail-closed exit verdict must reach the
+  // provider boundary as PROVIDER_ERROR, never as a usable analysis.
+  const transport = {
+    async complete() {
+      return { ok: false, reason: 'EXIT_NONZERO', detail: 'codex exec aborted', exitCode: 3 };
+    },
+  };
+  const provider = createCodexProvider({ model: CODEX_ROUTINE_MODEL, transport });
+  const outcome = await provider.analyze(CONTEXT);
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.status, AI_STATUS.PROVIDER_ERROR);
+  assert.deepEqual(outcome.issues, ['CODEX_EXIT_NONZERO']);
+  assert.equal(outcome.analysis, null);
+});
+
 test('CODEX PROVIDER: a throwing transport is PROVIDER_ERROR, not an exception', async () => {
   const provider = createCodexProvider({
     model: CODEX_ROUTINE_MODEL,
@@ -190,6 +206,31 @@ test('CODEX CONFIG: disabled by default and Astra never allowed by default', () 
 test('CODEX CONFIG: an unknown model or operation is a configuration error', () => {
   assert.throws(() => loadCodexProviderConfig({ AI_CODEX_MODEL: 'gpt-9' }), ConfigError);
   assert.throws(() => loadCodexProviderConfig({ AI_CODEX_ASTRA_OPERATIONS: 'DEPLOY' }), ConfigError);
+});
+
+test('CODEX CONFIG: fractional timeout/budget values are rejected at load time', () => {
+  // The reviewed contract is a positive integer; a fractional value must fail in
+  // the config layer, not later during transport construction.
+  for (const [field, raw] of [
+    ['AI_CODEX_TIMEOUT_MS', '1500.5'],
+    ['AI_CODEX_MAX_CALLS_PER_HOUR', '2.5'],
+  ]) {
+    assert.throws(
+      () => loadCodexProviderConfig({ [field]: raw }),
+      (error) => {
+        assert.ok(error instanceof ConfigError, `${field} must raise a ConfigError`);
+        assert.equal(error.field, field);
+        return true;
+      },
+    );
+  }
+
+  // Integer strings still parse, and the non-positive guard remains in force.
+  const config = loadCodexProviderConfig({ AI_CODEX_TIMEOUT_MS: '90000', AI_CODEX_MAX_CALLS_PER_HOUR: '12' });
+  assert.equal(config.timeoutMs, 90000);
+  assert.equal(config.maxCallsPerHour, 12);
+  assert.throws(() => loadCodexProviderConfig({ AI_CODEX_TIMEOUT_MS: '0' }), ConfigError);
+  assert.throws(() => loadCodexProviderConfig({ AI_CODEX_MAX_CALLS_PER_HOUR: '0' }), ConfigError);
 });
 
 test('CODEX CONFIG: the child environment drops every credential-shaped variable', () => {

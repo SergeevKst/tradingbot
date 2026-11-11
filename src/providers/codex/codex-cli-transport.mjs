@@ -328,6 +328,22 @@ export function createCodexCliTransport(options = {}) {
 
       const parsed = parseCodexEventStream(result.stdout);
       const durationMs = clock() - startedAt;
+      const exitCode = typeof result.code === 'number' ? result.code : null;
+
+      // A non-zero `codex exec` exit is a transport failure, full stop. Neither a
+      // JSONL stream that already contains a completed agent message nor a
+      // partially written `-o` file may turn a failed process into a successful
+      // call, so this check runs BEFORE any content is consumed. The only
+      // exception is diagnostic ordering: a structured error event is reported
+      // as CLI_ERROR (a more specific failure that still maps to
+      // PROVIDER_ERROR upstream), never as success.
+      if (exitCode !== 0) {
+        if (parsed.errors.length > 0) {
+          return { ok: false, reason: 'CLI_ERROR', detail: String(parsed.errors[0]).slice(-400), exitCode };
+        }
+        logger.warn('codex exec failed', { provider: CODEX_PROVIDER_ID, reason: 'EXIT_NONZERO', exitCode });
+        return { ok: false, reason: 'EXIT_NONZERO', detail: sanitizeStderr(result.stderr), exitCode };
+      }
 
       // `-o` writes exactly the final agent message. Prefer it when present: it
       // is the structured answer the CLI itself considers final.
@@ -347,15 +363,7 @@ export function createCodexCliTransport(options = {}) {
           ok: false,
           reason: 'CLI_ERROR',
           detail: String(parsed.errors[0]).slice(-400),
-          exitCode: typeof result.code === 'number' ? result.code : null,
-        };
-      }
-      if (result.code !== 0 && content === null) {
-        return {
-          ok: false,
-          reason: 'EXIT_NONZERO',
-          detail: sanitizeStderr(result.stderr),
-          exitCode: typeof result.code === 'number' ? result.code : null,
+          exitCode,
         };
       }
       if (content === null || content.trim() === '') {
@@ -363,7 +371,7 @@ export function createCodexCliTransport(options = {}) {
           ok: false,
           reason: 'NO_MESSAGE',
           detail: parsed.errors[0] ?? sanitizeStderr(result.stderr),
-          exitCode: typeof result.code === 'number' ? result.code : null,
+          exitCode,
         };
       }
 

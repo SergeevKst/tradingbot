@@ -126,9 +126,11 @@ export function loadCodexProviderConfig(env = process.env) {
     });
   }
   if (/[\s\u0000-\u001f]/.test(command)) {
-    // A path with whitespace is fine for spawn(argv); this only rejects control
-    // characters, which never appear in a legitimate executable name.
-    throw new ConfigError('AI_CODEX_COMMAND must not contain control characters', {
+    // Deliberately stricter than spawn(argv) strictly needs: whitespace is
+    // rejected along with control characters, so a configured command can never
+    // smuggle extra argv bytes or a shell fragment even though the child is
+    // started with `shell: false`.
+    throw new ConfigError('AI_CODEX_COMMAND must not contain whitespace or control characters', {
       field: 'AI_CODEX_COMMAND',
     });
   }
@@ -157,11 +159,13 @@ export function loadCodexProviderConfig(env = process.env) {
     field: 'AI_CODEX_TIMEOUT_MS',
     fallback: 120000,
     exclusiveMin: 0,
+    integer: true,
   });
   const maxCallsPerHour = parseNumber(env?.AI_CODEX_MAX_CALLS_PER_HOUR, {
     field: 'AI_CODEX_MAX_CALLS_PER_HOUR',
     fallback: 30,
     exclusiveMin: 0,
+    integer: true,
   });
   return Object.freeze({
     enabled,
