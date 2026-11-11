@@ -34,6 +34,8 @@ import {
 } from '../config/ai-runtime.mjs';
 import { createControlStore } from './coordination/control-store.mjs';
 import { createDeepSeekProvider } from '../providers/deepseek/deepseek-provider.mjs';
+import { createCodexCliTransport, createCodexProvider, loadCodexProviderConfig } from '../providers/codex/index.mjs';
+import { isLocalCliProvider } from '../config/ai-identity-manifest.mjs';
 import {
   createProductionDispatch,
   isPausedEnvelope,
@@ -44,7 +46,7 @@ import { SKILL_API_VERSION } from '../config/skill-package.mjs';
 import { finalizeAnalysis } from './analysis-schema.mjs';
 
 /** Provider adapter support in this build (extended by v1.2 multi-model). */
-export const SUPPORTED_CORE_PROVIDERS = Object.freeze(['deepseek', 'openrouter']);
+export const SUPPORTED_CORE_PROVIDERS = Object.freeze(['deepseek', 'openrouter', 'codex']);
 
 // ─── Multi-Model Routing Support (v1.2) ──────────────────────────────────────
 
@@ -244,6 +246,55 @@ export function createDefaultCoreProviderFactory(input) {
 
   // DeepSeek-specific validation (existing adapter only supports temperature=0, json_object, non-stream)
   const settings = getOperationSettings(profile, 'ANALYZE');
+
+  // ─── Codex (local CLI, subscription-backed) ────────────────────────────────
+  // No API key, no HTTP endpoint: the adapter starts `codex exec`, which owns the
+  // ChatGPT-subscription session. The provider is refused unless the deployment
+  // explicitly enabled it, and Astra requires an explicit operation allowance.
+  if (providerId === 'codex') {
+    if (
+      settings.temperature !== 0 ||
+      settings.responseFormat !== 'json_object' ||
+      settings.stream !== false
+    ) {
+      throw new CoordinationError(
+        'the codex reviewed adapter cannot honour this capability profile for ANALYZE',
+        { code: COORDINATION_ERROR_CODE.CONFIGURATION_ERROR },
+      );
+    }
+    const codexConfig = input.codexConfig ?? loadCodexProviderConfig(input.env);
+    if (codexConfig.enabled !== true) {
+      throw new CoordinationError(
+        'the codex provider is disabled: set AI_CODEX_ENABLED=true only after the operator review',
+        { code: COORDINATION_ERROR_CODE.ACTIVATION_PAUSED, details: { providerId } },
+      );
+    }
+    const codexTransport = input.codexTransport ?? createCodexCliTransport({
+      command: codexConfig.command,
+      timeoutMs: codexConfig.timeoutMs,
+      maxCallsPerHour: codexConfig.maxCallsPerHour,
+      // Already filtered by the config layer: no provider/exchange credential
+      // can reach the child process.
+      env: codexConfig.childEnv,
+    });
+    try {
+      return createCodexProvider({
+        model: modelId,
+        transport: codexTransport,
+        operation: 'ANALYZE',
+        astraOperations: codexConfig.astraOperations,
+        reasoningEffort: settings.reasoningEffort,
+        timeoutMs: settings.timeoutMs,
+      });
+    } catch (error) {
+      throw new CoordinationError('the codex ANALYZE adapter refused this model configuration', {
+        code: COORDINATION_ERROR_CODE.CONFIGURATION_ERROR,
+        cause: error instanceof Error ? error.message : 'CODEX_CONFIG_INVALID',
+        details: { providerId, modelId },
+      });
+    }
+  }
+
   if (providerId === 'deepseek') {
     if (
       settings.temperature !== 0 ||
@@ -489,16 +540,6 @@ export function createCoreAIComposition(options) {
       providerManifest = input.manifest;
       return runtime;
     }
-    let apiKey;
-    try {
-      apiKey = apiKeyLoader();
-    } catch (error) {
-      throw new CoordinationError('real inference requires a local API key', {
-        code: COORDINATION_ERROR_CODE.MISSING_SECRET,
-        cause: error,
-      });
-    }
-
     // ─── Multi-model routing (v1.2) ──────────────────────────────────────────
     // When a registry is configured, ANALYZE resolves its model identity from the
     // central routing table. The resolved input object is built **once and
@@ -509,27 +550,50 @@ export function createCoreAIComposition(options) {
     // licence to fall back to the manifest: in guarded mode an unresolvable route
     // refuses ANALYZE instead of dispatching an unreviewed provider identity.
     /** @type {Readonly<any>} */
-    let factoryInput;
+    let resolvedIdentity = null;
     if (options.registry && options.registry.routingTable?.['ANALYZE']) {
-      let resolved;
       try {
-        resolved = resolveOperationModel('ANALYZE', options.registry);
+        resolvedIdentity = resolveOperationModel('ANALYZE', options.registry);
       } catch (err) {
         throw new CoordinationError('the ANALYZE model route cannot be resolved from the registry', {
           code: COORDINATION_ERROR_CODE.INVALID_EVIDENCE,
           cause: err instanceof CoordinationError ? err.code : 'RESOLUTION_FAILED',
         });
       }
+    }
+
+    // A local-CLI provider (Codex) authenticates through the CLI's own
+    // subscription session and must never be handed — or required to have — an
+    // API key. Every HTTP provider still fails closed without one.
+    const targetProviderId = resolvedIdentity?.providerId ?? input.manifest.providerId;
+    /** @type {string | null} */
+    let apiKey = null;
+    if (!isLocalCliProvider(targetProviderId)) {
+      try {
+        apiKey = apiKeyLoader();
+      } catch (error) {
+        throw new CoordinationError('real inference requires a local API key', {
+          code: COORDINATION_ERROR_CODE.MISSING_SECRET,
+          cause: error,
+        });
+      }
+    }
+
+    /** @type {Readonly<any>} */
+    let factoryInput;
+    if (resolvedIdentity !== null) {
       factoryInput = Object.freeze({
         manifest: input.manifest,
         profile: input.profile,
-        resolvedIdentity: resolved,
+        resolvedIdentity,
         apiKey,
         fetchImpl: transport.fetchImpl,
-        providerId: resolved.providerId,
-        model: resolved.modelId,
-        baseUrl: resolved.canonicalBaseUrl,
+        providerId: resolvedIdentity.providerId,
+        model: resolvedIdentity.modelId,
+        baseUrl: resolvedIdentity.canonicalBaseUrl,
         settings: getOperationSettings(input.profile, 'ANALYZE'),
+        codexTransport: transport.codexTransport,
+        env: options.env,
       });
     } else {
       factoryInput = Object.freeze({
@@ -541,6 +605,8 @@ export function createCoreAIComposition(options) {
         model: input.manifest.modelId,
         baseUrl: input.manifest.canonicalBaseUrl,
         settings: getOperationSettings(input.profile, 'ANALYZE'),
+        codexTransport: transport.codexTransport,
+        env: options.env,
       });
     }
 

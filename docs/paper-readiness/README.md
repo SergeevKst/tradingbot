@@ -10,6 +10,7 @@ what is not, and what still blocks the next step.
 | [PAPER_SMOKE_RUN.md](PAPER_SMOKE_RUN.md) | how to reproduce the smoke run, the recorded results and the zero-order proof |
 | [AI_PIPELINE_READINESS.md](AI_PIPELINE_READINESS.md) | whether the six-operation AI pipeline can supply decisions to PAPER, and the blockers |
 | [TELEGRAM_EXECUTION_BLOCKERS.md](TELEGRAM_EXECUTION_BLOCKERS.md) | three recorded defects in the Telegram execution path (recorded only, not fixed) |
+| [CODEX_INTEGRATION.md](CODEX_INTEGRATION.md) | Codex subscription access evidence, provider adapter, AI → PAPER bridge, measured cost and residual risks |
 
 ## State of the PAPER path, in one table
 
@@ -23,8 +24,10 @@ what is not, and what still blocks the next step.
 | No PAPER path can reach an authenticated exchange request | proven | `test/paper-isolation.test.mjs` |
 | LIVE mode refused by the session factory | proven | `test/paper-isolation.test.mjs`, `test/live-safety.test.mjs` |
 | Market-data staleness gate inside the session | **missing** | characterized in `test/paper-session-validation.test.mjs` |
+| Market-data staleness gate on the AI decision path | **working** (the sink refuses stale snapshots) | `test/paper-decision-sink.test.mjs` |
 | Continuous loop / scheduler for unattended paper trading | **missing** | `src/index.mjs` is one-shot |
-| AI decisions feeding PAPER | **not wired** | `AI_PIPELINE_READINESS.md` |
+| AI decisions feeding PAPER | **bridge implemented, not loop-driven** | `AI_PIPELINE_READINESS.md`, `CODEX_INTEGRATION.md` |
+| Codex subscription-backed model access | **verified end-to-end (off by default)** | `CODEX_INTEGRATION.md` §2.5 |
 
 Run the suites:
 
@@ -52,3 +55,7 @@ in the AI prompt layer, not in the PAPER path.
 
 With this task's changes: 938 tests, 934 pass, the **same 3 pre-existing
 failures**, 1 skipped (+40 tests, no assertion weakened).
+
+With the Codex integration task: 988 tests, 984 pass, the **same 3 pre-existing
+failures**, 1 skipped (+50 tests, no assertion weakened). Details in
+[CODEX_INTEGRATION.md](CODEX_INTEGRATION.md).

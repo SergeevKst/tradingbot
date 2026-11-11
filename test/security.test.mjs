@@ -352,6 +352,13 @@ test('SECURITY: only the storage layer writes files, and never inside the tradin
   const allowedStorageModules = [
     'src/state/jsonl-file.mjs',
     'src/ai/coordination/control-store.mjs',
+    // Codex CLI adapter (added for the owner's subscription-backed Codex
+    // provider). It is the one module that starts a child process: `codex exec`
+    // needs a process, a throwaway temp workspace and a schema file. The
+    // exception is narrow and is compensated immediately below: the module may
+    // not import any trading, execution, session, risk or state module, and it
+    // performs no network I/O of its own.
+    'src/providers/codex/codex-cli-transport.mjs',
   ];
   const banned = ['writeFileSync', 'appendFileSync', 'child_process', 'execSync', 'spawnSync'];
 
@@ -399,6 +406,46 @@ test('SECURITY: only the storage layer writes files, and never inside the tradin
       );
     }
   }
+
+  // Compensating constraint for the Codex CLI adapter exception above: the only
+  // module allowed to spawn a process must stay outside the trading boundary and
+  // must not reach the network itself.
+  const codexTransport = 'src/providers/codex/codex-cli-transport.mjs';
+  const forbiddenForCodexTransport = [
+    '../risk/',
+    '../execution/',
+    '../session/',
+    '../reconciliation/',
+    '../state/',
+    '../telegram/',
+    '../adapters/bybit/',
+    '../testnet/',
+    '../domain/',
+  ];
+  for (const spec of importSpecifiers(resolve(projectRoot, codexTransport))) {
+    for (const prefix of forbiddenForCodexTransport) {
+      assert.ok(
+        !spec.includes(prefix),
+        `${codexTransport} must not import ${spec} — a model process cannot sit on a trading path`,
+      );
+    }
+    assert.ok(!spec.includes('node:http'), `${codexTransport} must not open HTTP itself`);
+    assert.ok(!spec.includes('node:https'), `${codexTransport} must not open HTTPS itself`);
+  }
+  const codexSource = source(resolve(projectRoot, codexTransport));
+  // Comments in that module name the variables it *drops*, so strip comments
+  // before asserting that the code itself never handles a credential.
+  const codexCode = codexSource
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('//'))
+    .join('\n');
+  assert.ok(!/\bfetch\s*\(/.test(codexCode), `${codexTransport} must not call fetch`);
+  // No credential parameter or key lookup: the adapter cannot be handed one, and
+  // it cannot read one. (A redaction regex for stderr noise is allowed and is
+  // asserted separately in test/codex-cli-transport.test.mjs.)
+  assert.ok(!/\bapiKey\b/.test(codexCode), `${codexTransport} must not accept or hold a credential`);
+  assert.ok(codexSource.includes('shell: false'), `${codexTransport} must spawn without a shell`);
 });
 
 test('SECURITY: the paper execution layer cannot import a Bybit write client', () => {
@@ -520,6 +567,7 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/ai/mock-provider.mjs',
     'src/ai/operation-profiles.mjs',
     'src/ai/model-resolver.mjs',
+    'src/ai/paper-decision-sink.mjs',
     'src/config/ai-model-registry.mjs',
 
     'src/ai/prompts.mjs',
@@ -557,6 +605,7 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/config/ai-release-schema.mjs',
     'src/config/ai-runtime.mjs',
     'src/config/ai.mjs',
+    'src/config/codex.mjs',
     'src/config/config-error.mjs',
     'src/config/env.mjs',
     'src/config/jcs.mjs',
@@ -619,6 +668,9 @@ test('SECURITY: the module inventory is exactly what Stage 2 intends', () => {
     'src/normalizers/index.mjs',
     'src/providers/deepseek/deepseek-provider.mjs',
     'src/providers/deepseek/index.mjs',
+    'src/providers/codex/codex-cli-transport.mjs',
+    'src/providers/codex/codex-provider.mjs',
+    'src/providers/codex/index.mjs',
     'src/reconciliation/duplicate-guard.mjs',
     'src/reconciliation/failure-policy.mjs',
     'src/reconciliation/idempotency.mjs',

@@ -21,7 +21,8 @@
 import { createHash } from 'node:crypto';
 import { ConfigError } from './config-error.mjs';
 import { StrictJsonError, digestJson, isPlainObject, parseStrictJsonBytes } from './jcs.mjs';
-import { IDENTIFIER_PATTERN, DIGEST_PATTERN } from './ai-identity-manifest.mjs';
+import { IDENTIFIER_PATTERN, DIGEST_PATTERN, LOCAL_CLI_BASE_URLS, isLocalCliProvider } from './ai-identity-manifest.mjs';
+import { VALID_PROVIDERS } from '../ai/operation-profiles.mjs';
 import { COORDINATION_ERROR_CODE, CoordinationError } from '../errors/coordination-error.mjs';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -68,10 +69,22 @@ function assertIdentifier(value, field) {
   return value;
 }
 
-/** Canonicalize and validate a URL string. Must be absolute HTTPS with path exactly `/v1`. */
-function normalizeBaseUrlString(value, field) {
+/** Canonicalize and validate a URL string. Must be absolute HTTPS with path exactly `/v1`.
+ *
+ * A local-CLI provider (Codex) has no endpoint; the only legal value for it is
+ * its exact sentinel (`cli://codex`), which keeps the registry a closed schema
+ * while making it impossible to attach an HTTP URL to a local process.
+ */
+function normalizeBaseUrlString(value, field, providerId) {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new ConfigError(`${field} must be a non-empty string`, { field });
+  }
+  if (isLocalCliProvider(providerId)) {
+    const expected = LOCAL_CLI_BASE_URLS[/** @type {string} */ (providerId)];
+    if (value !== expected) {
+      throw new ConfigError(`${field} for provider ${providerId} must be exactly ${JSON.stringify(expected)}`, { field });
+    }
+    return expected;
   }
   let url;
   try {
@@ -153,10 +166,20 @@ function validateModelEntry(raw) {
     }
   }
 
+  const providerId = assertIdentifier(input.providerId, 'model.providerId');
+  if (!VALID_PROVIDERS.includes(providerId)) {
+    // Defence in depth: the composition also refuses an unsupported provider,
+    // but a registry that names one is a configuration fault at load time.
+    throw new ConfigError(
+      `model.providerId must be one of ${VALID_PROVIDERS.join(', ')} — got ${JSON.stringify(providerId)}`,
+      { field: 'model.providerId' },
+    );
+  }
+
   return Object.freeze({
-    providerId: assertIdentifier(input.providerId, 'model.providerId'),
+    providerId,
     modelId: assertIdentifier(input.modelId, 'model.modelId'),
-    canonicalBaseUrl: normalizeBaseUrlString(input.canonicalBaseUrl, 'model.canonicalBaseUrl'),
+    canonicalBaseUrl: normalizeBaseUrlString(input.canonicalBaseUrl, 'model.canonicalBaseUrl', providerId),
     capabilityProfileId: assertIdentifier(input.capabilityProfileId, 'model.capabilityProfileId'),
     capabilityProfileSha256: assertDigest(input.capabilityProfileSha256, 'model.capabilityProfileSha256'),
     trustTier: (() => {
